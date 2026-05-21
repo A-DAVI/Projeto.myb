@@ -9,22 +9,37 @@ export interface EditorColors {
   white: string
 }
 
+export type Slide2Layout = 'stats' | 'cards' | 'quote'
+
+export interface Stat { num: string; label: string; detail: string }
+export interface Card { emoji: string; num: string; label: string }
+export interface Quote { highlight: string; text: string; author: string }
+
 export interface EditorState {
   colors: EditorColors
   handle: string
-  // imagens em base64 (null = sem imagem)
   images: { 1: string | null; 2: string | null; 3: string | null }
-  f1: { eyebrow: string; headlineText: string; headlineAccent: string; headlineEnd: string; subline: string }
+  f1: {
+    eyebrow: string
+    headlineText: string
+    headlineAccent: string
+    headlineEnd: string
+    subline: string
+  }
   f2: {
-    title: string; subtitle: string; source: string
-    stats: [
-      { num: string; label: string; detail: string },
-      { num: string; label: string; detail: string },
-      { num: string; label: string; detail: string },
-    ]
+    layout: Slide2Layout
+    title: string
+    subtitle: string
+    source: string
+    stats: [Stat, Stat, Stat]
+    cards: [Card, Card, Card]
+    quote: Quote
   }
   f3: {
-    tag: string; headlineText: string; headlineAccent: string; headlineEnd: string
+    tag: string
+    headlineText: string
+    headlineAccent: string
+    headlineEnd: string
     feats: [string, string, string]
     cta: string
   }
@@ -42,6 +57,7 @@ export const DEFAULT_STATE: EditorState = {
     subline: 'ONGs sem visibilidade. Adotantes perdidos em redes sociais. Tutores sem guia confiável.',
   },
   f2: {
+    layout: 'stats',
     title: 'o cenário hoje',
     subtitle: 'números que mostram a urgência',
     source: 'fonte: dados brasileiros de abandono pet',
@@ -50,6 +66,16 @@ export const DEFAULT_STATE: EditorState = {
       { num: '26%', label: 'abandono de gatos', detail: '~10 milhões de gatos abandonados' },
       { num: '73%', label: 'interesse por adoção', detail: 'acima da média histórica no país' },
     ],
+    cards: [
+      { emoji: '🐕', num: '25%', label: 'abandono de cães' },
+      { emoji: '🐈', num: '26%', label: 'abandono de gatos' },
+      { emoji: '💚', num: '73%', label: 'querem adotar' },
+    ],
+    quote: {
+      highlight: '30M',
+      text: 'pets sem lar no Brasil precisam de visibilidade e de uma chance real.',
+      author: '— IBGE / CFMV, 2023',
+    },
   },
   f3: {
     tag: 'a nossa proposta',
@@ -64,6 +90,7 @@ export const DEFAULT_STATE: EditorState = {
 const STORAGE_KEY = 'mybuddy-editor-state'
 
 type Listener = (state: EditorState) => void
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
 class Store {
   private state: EditorState
@@ -74,11 +101,9 @@ class Store {
   }
 
   get(): EditorState {
-    // retorna cópia rasa para evitar mutação acidental
     return this.state
   }
 
-  // atualiza um pedaço do estado e notifica listeners
   set(patch: DeepPartial<EditorState>): void {
     this.state = deepMerge(this.state, patch) as EditorState
     this.save()
@@ -91,21 +116,18 @@ class Store {
   }
 
   reset(): void {
-    // deep clone do default pra não ter referências compartilhadas
     this.state = JSON.parse(JSON.stringify(DEFAULT_STATE))
     this.save()
     this.notify()
   }
 
   toJSON(): string {
-    // não exporta imagens (podem ser multi-MB) — exporta só textos e cores
     const { images: _images, ...rest } = this.state
     return JSON.stringify(rest, null, 2)
   }
 
   fromJSON(json: string): void {
     const parsed = JSON.parse(json)
-    // mantém imagens atuais, aplica o resto
     this.state = deepMerge(this.state, parsed) as EditorState
     this.save()
     this.notify()
@@ -117,10 +139,8 @@ class Store {
 
   private save(): void {
     try {
-      // imagens podem ser grandes, salva só se couber
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
     } catch {
-      // QuotaExceededError: ignora silenciosamente (imagens base64 são pesadas)
       const { images: _images, ...rest } = this.state
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...rest, images: { 1: null, 2: null, 3: null } }))
     }
@@ -137,11 +157,10 @@ class Store {
   }
 }
 
-// utilitários internos
-type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
-
 function deepMerge(base: unknown, patch: unknown): unknown {
-  if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) return patch ?? base
+  // arrays são substituídos inteiros, nunca merged campo a campo
+  if (Array.isArray(patch)) return patch
+  if (typeof patch !== 'object' || patch === null) return patch ?? base
   const result = { ...(base as Record<string, unknown>) }
   for (const key of Object.keys(patch as object)) {
     result[key] = deepMerge(result[key], (patch as Record<string, unknown>)[key])

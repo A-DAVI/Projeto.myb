@@ -10,340 +10,287 @@
 </head>
 <body>
 
-  <!-- ============ SIDEBAR ============ -->
-  <aside class="sidebar">
-    <h1>🐾 MyBuddy Editor</h1>
-    <p class="subtitle">edite, ajuste, exporte</p>
+<!-- ============ SIDEBAR ============ -->
+<aside class="sidebar">
+  <h1>🐾 MyBuddy Editor</h1>
+  <p class="subtitle">edite, ajuste, exporte</p>
 
-    <!-- PERSISTÊNCIA -->
-    <div class="editor-section">
-      <h3>💾 sessão</h3>
-      <div class="export-section" style="padding: 10px; display: flex; gap: 6px; flex-direction: column;">
-        <button class="export-btn secondary small" id="btn-export-json">📤 exportar config (.json)</button>
-        <label class="export-btn secondary small" style="text-align:center;cursor:pointer;">
-          📥 importar config (.json)
-          <input type="file" id="import-json" accept=".json" style="display:none;">
-        </label>
-        <button class="export-btn secondary small" id="btn-reset">↩ resetar padrões</button>
+  <!-- IA -->
+  <div class="editor-section">
+    <h3>✨ gerar com IA</h3>
+    <div class="field">
+      <label>chave da API Anthropic</label>
+      <div style="display:flex;gap:6px;">
+        <input type="password" id="ai-key" placeholder="sk-ant-..." style="flex:1">
+        <button class="icon-btn" id="btn-clear-key" title="Apagar chave">🗑</button>
       </div>
-      <div class="info-box" style="margin-top:8px;">
-        💡 suas edições são salvas automaticamente no navegador.
+    </div>
+    <div class="field">
+      <label>tema / contexto</label>
+      <textarea id="ai-topic" style="min-height:56px;">adoção de pets no Brasil — problema, dados e solução MyBuddy</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+      <button class="export-btn ai-btn" id="btn-gen-all">✨ gerar carrossel completo</button>
+      <div style="display:flex;gap:6px;">
+        <button class="export-btn secondary small ai-btn" id="btn-gen-1" title="Gerar slide 1">slide 1</button>
+        <button class="export-btn secondary small ai-btn" id="btn-gen-2" title="Gerar slide 2">slide 2</button>
+        <button class="export-btn secondary small ai-btn" id="btn-gen-3" title="Gerar slide 3">slide 3</button>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:8px;">
+      💡 a chave fica salva só no seu navegador. Usamos <strong>claude-haiku</strong> — rápido e barato.
+    </div>
+  </div>
+
+  <!-- SESSÃO -->
+  <div class="editor-section">
+    <h3>💾 sessão</h3>
+    <div class="export-section" style="padding:10px;display:flex;gap:6px;flex-direction:column;">
+      <button class="export-btn secondary small" id="btn-export-json">📤 exportar config (.json)</button>
+      <label class="export-btn secondary small" style="text-align:center;cursor:pointer;">
+        📥 importar config (.json)
+        <input type="file" id="import-json" accept=".json" style="display:none;">
+      </label>
+      <button class="export-btn secondary small" id="btn-reset">↩ resetar padrões</button>
+    </div>
+    <div class="info-box" style="margin-top:8px;">💡 suas edições são salvas automaticamente no navegador.</div>
+  </div>
+
+  <!-- CORES -->
+  <div class="editor-section">
+    <h3>🎨 paleta</h3>
+    <div class="colors-grid">
+      <div class="color-field"><label>fundo</label><input type="color" id="color-bg" value="#DADAB8"></div>
+      <div class="color-field"><label>laranja</label><input type="color" id="color-orange" value="#E67E22"></div>
+      <div class="color-field"><label>oliva</label><input type="color" id="color-olive" value="#556B2F"></div>
+      <div class="color-field"><label>preto</label><input type="color" id="color-ink" value="#1A1815"></div>
+      <div class="color-field"><label>vermelho</label><input type="color" id="color-red" value="#C84A2E"></div>
+      <div class="color-field"><label>branco</label><input type="color" id="color-white" value="#FFFFFF"></div>
+    </div>
+  </div>
+
+  <!-- HANDLE -->
+  <div class="editor-section">
+    <h3>📱 handle</h3>
+    <div class="field">
+      <label>usuário Instagram</label>
+      <input type="text" id="handle" value="@mybuddy.pet">
+    </div>
+  </div>
+
+  <!-- IMAGENS -->
+  <div class="editor-section">
+    <h3>🖼️ imagens</h3>
+    <div class="field">
+      <label>slide 1 — foto do pet (círculo)</label>
+      <div class="drop-zone" id="drop-1" data-slot="1">
+        <input type="file" id="img-1" accept="image/*" class="file-input">
+        <span class="drop-hint">arraste ou clique para escolher</span>
+      </div>
+      <button class="remove-img-btn" id="remove-img-1">remover imagem</button>
+    </div>
+    <div class="field">
+      <label>slide 2 — imagem decorativa (opcional)</label>
+      <div class="drop-zone" id="drop-2" data-slot="2">
+        <input type="file" id="img-2" accept="image/*" class="file-input">
+        <span class="drop-hint">arraste ou clique para escolher</span>
+      </div>
+      <button class="remove-img-btn" id="remove-img-2">remover imagem</button>
+    </div>
+    <div class="field">
+      <label>slide 3 — imagem decorativa (opcional)</label>
+      <div class="drop-zone" id="drop-3" data-slot="3">
+        <input type="file" id="img-3" accept="image/*" class="file-input">
+        <span class="drop-hint">arraste ou clique para escolher</span>
+      </div>
+      <button class="remove-img-btn" id="remove-img-3">remover imagem</button>
+    </div>
+    <div class="info-box" style="margin-top:6px">
+      💡 use fotos com fundo recortado (PNG sem fundo). Abaixo de 800px pode ficar borrado na exportação.
+    </div>
+  </div>
+
+  <!-- SLIDE 1 -->
+  <div class="editor-section">
+    <h3><span class="num">1</span> slide 1 — problema</h3>
+    <div class="field"><label>eyebrow</label><input type="text" id="f1-eyebrow" value="você sabia?"></div>
+    <div class="field"><label>headline (texto)</label><input type="text" id="f1-headline-text" value="milhões de pets "></div>
+    <div class="field"><label>palavra destaque (laranja)</label><input type="text" id="f1-headline-accent" value="esperam"></div>
+    <div class="field"><label>headline (final)</label><input type="text" id="f1-headline-end" value=" um lar no Brasil."></div>
+    <div class="field">
+      <label>subtítulo</label>
+      <textarea id="f1-subline">ONGs sem visibilidade. Adotantes perdidos em redes sociais. Tutores sem guia confiável.</textarea>
+    </div>
+  </div>
+
+  <!-- SLIDE 2 -->
+  <div class="editor-section">
+    <h3><span class="num">2</span> slide 2 — dados</h3>
+
+    <!-- seletor de layout -->
+    <div class="field">
+      <label>layout</label>
+      <div class="layout-selector" id="layout-selector">
+        <button class="layout-btn active" data-layout="stats">📊 stats</button>
+        <button class="layout-btn" data-layout="cards">🃏 cards</button>
+        <button class="layout-btn" data-layout="quote">💬 quote</button>
       </div>
     </div>
 
-    <!-- COLORS -->
-    <div class="editor-section">
-      <h3>🎨 paleta</h3>
-      <div class="colors-grid">
-        <div class="color-field">
-          <label>fundo</label>
-          <input type="color" id="color-bg" value="#DADAB8">
-        </div>
-        <div class="color-field">
-          <label>laranja</label>
-          <input type="color" id="color-orange" value="#E67E22">
-        </div>
-        <div class="color-field">
-          <label>oliva</label>
-          <input type="color" id="color-olive" value="#556B2F">
-        </div>
-        <div class="color-field">
-          <label>preto</label>
-          <input type="color" id="color-ink" value="#1A1815">
-        </div>
-        <div class="color-field">
-          <label>vermelho</label>
-          <input type="color" id="color-red" value="#C84A2E">
-        </div>
-        <div class="color-field">
-          <label>branco</label>
-          <input type="color" id="color-white" value="#FFFFFF">
-        </div>
-      </div>
+    <!-- campos comuns -->
+    <div class="field"><label>título</label><input type="text" id="f2-title" value="o cenário hoje"></div>
+    <div class="field"><label>subtítulo</label><input type="text" id="f2-subtitle" value="números que mostram a urgência"></div>
+
+    <!-- campos do layout STATS -->
+    <div id="f2-fields-stats">
+      <div class="field"><label>dado 1 — número</label><input type="text" id="f2-num1" value="25%"></div>
+      <div class="field"><label>dado 1 — label</label><input type="text" id="f2-label1" value="abandono de cães"></div>
+      <div class="field"><label>dado 1 — detalhe</label><input type="text" id="f2-detail1" value="~20,2 milhões de cães abandonados"></div>
+      <div class="field"><label>dado 2 — número</label><input type="text" id="f2-num2" value="26%"></div>
+      <div class="field"><label>dado 2 — label</label><input type="text" id="f2-label2" value="abandono de gatos"></div>
+      <div class="field"><label>dado 2 — detalhe</label><input type="text" id="f2-detail2" value="~10 milhões de gatos abandonados"></div>
+      <div class="field"><label>dado 3 — número (positivo)</label><input type="text" id="f2-num3" value="73%"></div>
+      <div class="field"><label>dado 3 — label</label><input type="text" id="f2-label3" value="interesse por adoção"></div>
+      <div class="field"><label>dado 3 — detalhe</label><input type="text" id="f2-detail3" value="acima da média histórica no país"></div>
     </div>
 
-    <!-- HANDLE -->
-    <div class="editor-section">
-      <h3>📱 handle</h3>
-      <div class="field">
-        <label>usuário Instagram</label>
-        <input type="text" id="handle" value="@mybuddy.pet">
-      </div>
+    <!-- campos do layout CARDS -->
+    <div id="f2-fields-cards" style="display:none">
+      <div class="field"><label>card 1 — emoji</label><input type="text" id="f2-emoji1" value="🐕"></div>
+      <div class="field"><label>card 1 — número</label><input type="text" id="f2-cnum1" value="25%"></div>
+      <div class="field"><label>card 1 — label</label><input type="text" id="f2-clabel1" value="abandono de cães"></div>
+      <div class="field"><label>card 2 — emoji</label><input type="text" id="f2-emoji2" value="🐈"></div>
+      <div class="field"><label>card 2 — número</label><input type="text" id="f2-cnum2" value="26%"></div>
+      <div class="field"><label>card 2 — label</label><input type="text" id="f2-clabel2" value="abandono de gatos"></div>
+      <div class="field"><label>card 3 — emoji</label><input type="text" id="f2-emoji3" value="💚"></div>
+      <div class="field"><label>card 3 — número</label><input type="text" id="f2-cnum3" value="73%"></div>
+      <div class="field"><label>card 3 — label</label><input type="text" id="f2-clabel3" value="querem adotar"></div>
     </div>
 
-    <!-- IMAGENS -->
-    <div class="editor-section">
-      <h3>🖼️ imagens</h3>
-      <div class="field">
-        <label>slide 1 — foto do pet (círculo)</label>
-        <div class="drop-zone" id="drop-1" data-slot="1">
-          <input type="file" id="img-1" accept="image/*" class="file-input">
-          <span class="drop-hint">arraste ou clique para escolher</span>
-        </div>
-        <button class="remove-img-btn" id="remove-img-1">remover imagem</button>
-      </div>
-      <div class="field">
-        <label>slide 2 — imagem decorativa (opcional)</label>
-        <div class="drop-zone" id="drop-2" data-slot="2">
-          <input type="file" id="img-2" accept="image/*" class="file-input">
-          <span class="drop-hint">arraste ou clique para escolher</span>
-        </div>
-        <button class="remove-img-btn" id="remove-img-2">remover imagem</button>
-      </div>
-      <div class="field">
-        <label>slide 3 — imagem decorativa (opcional)</label>
-        <div class="drop-zone" id="drop-3" data-slot="3">
-          <input type="file" id="img-3" accept="image/*" class="file-input">
-          <span class="drop-hint">arraste ou clique para escolher</span>
-        </div>
-        <button class="remove-img-btn" id="remove-img-3">remover imagem</button>
-      </div>
-      <div class="info-box" style="margin-top:6px">
-        💡 use fotos com fundo recortado (PNG sem fundo) ou close-ups do pet. PNGs pequenos (&lt;800px) podem ficar borrados na exportação.
-      </div>
+    <!-- campos do layout QUOTE -->
+    <div id="f2-fields-quote" style="display:none">
+      <div class="field"><label>destaque (número/palavra grande)</label><input type="text" id="f2-q-highlight" value="30M"></div>
+      <div class="field"><label>texto da citação</label><textarea id="f2-q-text">pets sem lar no Brasil precisam de visibilidade e de uma chance real.</textarea></div>
+      <div class="field"><label>atribuição / fonte</label><input type="text" id="f2-q-author" value="— IBGE / CFMV, 2023"></div>
     </div>
+
+    <div class="field"><label>fonte</label><input type="text" id="f2-source" value="fonte: dados brasileiros de abandono pet"></div>
+  </div>
+
+  <!-- SLIDE 3 -->
+  <div class="editor-section">
+    <h3><span class="num">3</span> slide 3 — solução</h3>
+    <div class="field"><label>tag</label><input type="text" id="f3-tag" value="a nossa proposta"></div>
+    <div class="field"><label>headline (início)</label><input type="text" id="f3-headline-text" value="o hub "></div>
+    <div class="field"><label>palavra destaque</label><input type="text" id="f3-headline-accent" value="completo"></div>
+    <div class="field"><label>headline (final)</label><input type="text" id="f3-headline-end" value=" do ecossistema pet."></div>
+    <div class="field"><label>feature 1</label><input type="text" id="f3-feat1" value="adoção com busca inteligente"></div>
+    <div class="field"><label>feature 2</label><input type="text" id="f3-feat2" value="visibilidade pra ONGs e protetores"></div>
+    <div class="field"><label>feature 3</label><input type="text" id="f3-feat3" value="marketplace e serviços num só lugar"></div>
+    <div class="field"><label>CTA</label><input type="text" id="f3-cta" value="faça parte"></div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="editor-section">
+    <h3>📤 exportar</h3>
+    <div class="export-section">
+      <button class="export-btn" id="btn-export-all">📥 baixar todos (1080×1350)</button>
+      <button class="export-btn" id="btn-export-zip">🗜 baixar ZIP (3 slides)</button>
+      <button class="export-btn secondary" id="btn-export-1">slide 1</button>
+      <button class="export-btn secondary" id="btn-export-2">slide 2</button>
+      <button class="export-btn secondary" id="btn-export-3">slide 3</button>
+    </div>
+    <div class="info-box" style="margin-top:10px">
+      💡 PNGs em <strong>1080×1350</strong> prontos pra Instagram (4:5).<br>Use <strong>Ctrl+E</strong> para exportar todos.
+    </div>
+  </div>
+
+</aside>
+
+<!-- ============ MAIN ============ -->
+<main class="main">
+  <div class="main-header">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir editor">
+      <span></span><span></span><span></span>
+    </button>
+    <h2>preview ao vivo</h2>
+    <p>edite à esquerda · exporte abaixo</p>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="carousel">
 
     <!-- FRAME 1 -->
-    <div class="editor-section">
-      <h3><span class="num">1</span> slide 1 — problema</h3>
-      <div class="field">
-        <label>eyebrow</label>
-        <input type="text" id="f1-eyebrow" value="você sabia?">
+    <div class="frame-scaler">
+    <div class="frame frame-1" id="frame-1">
+      <span class="frame-label"><span>01</span> · problema</span>
+      <div class="top">
+        <div class="mb-logo">MyBuddy</div>
+        <div class="counter"><span class="active"></span><span></span><span></span></div>
       </div>
-      <div class="field">
-        <label>headline (texto)</label>
-        <input type="text" id="f1-headline-text" value="milhões de pets ">
+      <div class="f1-pet" id="f1-pet">
+        <div class="icon">🐶</div>
+        <div class="txt">imagem aqui</div>
       </div>
-      <div class="field">
-        <label>palavra destaque (laranja)</label>
-        <input type="text" id="f1-headline-accent" value="esperam">
+      <div class="f1-middle">
+        <p class="f1-eyebrow" id="render-f1-eyebrow">você sabia?</p>
+        <h2 class="f1-headline">
+          <span id="render-f1-headline-text">milhões de pets </span><span class="accent" id="render-f1-headline-accent">esperam</span><span id="render-f1-headline-end"> um lar no Brasil.</span>
+        </h2>
+        <p class="f1-subline" id="render-f1-subline">ONGs sem visibilidade. Adotantes perdidos em redes sociais. Tutores sem guia confiável.</p>
       </div>
-      <div class="field">
-        <label>headline (final)</label>
-        <input type="text" id="f1-headline-end" value=" um lar no Brasil.">
-      </div>
-      <div class="field">
-        <label>subtítulo</label>
-        <textarea id="f1-subline">ONGs sem visibilidade. Adotantes perdidos em redes sociais. Tutores sem guia confiável.</textarea>
+      <div class="f1-bottom">
+        <span class="handle-pill render-handle">@mybuddy.pet</span>
+        <span class="f1-swipe">arraste →</span>
       </div>
     </div>
+    </div><!-- /frame-scaler -->
 
-    <!-- FRAME 2 -->
-    <div class="editor-section">
-      <h3><span class="num">2</span> slide 2 — dados</h3>
-      <div class="field">
-        <label>título</label>
-        <input type="text" id="f2-title" value="o cenário hoje">
+    <!-- FRAME 2 — corpo dinâmico renderizado por Slide2.ts -->
+    <div class="frame-scaler">
+    <div class="frame frame-2" id="frame-2">
+      <span class="frame-label"><span>02</span> · dados</span>
+      <div class="f2-deco-img" id="f2-deco"></div>
+      <div class="top">
+        <div class="mb-logo">MyBuddy</div>
+        <div class="counter"><span></span><span class="active"></span><span></span></div>
       </div>
-      <div class="field">
-        <label>subtítulo</label>
-        <input type="text" id="f2-subtitle" value="números que mostram a urgência">
-      </div>
-      <div class="field">
-        <label>dado 1 — número</label>
-        <input type="text" id="f2-num1" value="25%">
-      </div>
-      <div class="field">
-        <label>dado 1 — label</label>
-        <input type="text" id="f2-label1" value="abandono de cães">
-      </div>
-      <div class="field">
-        <label>dado 1 — detalhe</label>
-        <input type="text" id="f2-detail1" value="~20,2 milhões de cães abandonados">
-      </div>
-      <div class="field">
-        <label>dado 2 — número</label>
-        <input type="text" id="f2-num2" value="26%">
-      </div>
-      <div class="field">
-        <label>dado 2 — label</label>
-        <input type="text" id="f2-label2" value="abandono de gatos">
-      </div>
-      <div class="field">
-        <label>dado 2 — detalhe</label>
-        <input type="text" id="f2-detail2" value="~10 milhões de gatos abandonados">
-      </div>
-      <div class="field">
-        <label>dado 3 — número (positivo)</label>
-        <input type="text" id="f2-num3" value="73%">
-      </div>
-      <div class="field">
-        <label>dado 3 — label</label>
-        <input type="text" id="f2-label3" value="interesse por adoção">
-      </div>
-      <div class="field">
-        <label>dado 3 — detalhe</label>
-        <input type="text" id="f2-detail3" value="acima da média histórica no país">
-      </div>
-      <div class="field">
-        <label>fonte</label>
-        <input type="text" id="f2-source" value="fonte: dados brasileiros de abandono pet">
-      </div>
+      <!-- substituído por Slide2.ts conforme o layout -->
+      <div id="f2-body"></div>
     </div>
+    </div><!-- /frame-scaler -->
 
     <!-- FRAME 3 -->
-    <div class="editor-section">
-      <h3><span class="num">3</span> slide 3 — solução</h3>
-      <div class="field">
-        <label>tag</label>
-        <input type="text" id="f3-tag" value="a nossa proposta">
+    <div class="frame-scaler">
+    <div class="frame frame-3" id="frame-3">
+      <span class="frame-label"><span>03</span> · solução</span>
+      <div class="f3-deco-img" id="f3-deco"></div>
+      <div class="top">
+        <div class="mb-logo">MyBuddy</div>
+        <div class="counter"><span></span><span></span><span class="active"></span></div>
       </div>
-      <div class="field">
-        <label>headline (início)</label>
-        <input type="text" id="f3-headline-text" value="o hub ">
+      <div class="f3-middle">
+        <span class="f3-tag" id="render-f3-tag">a nossa proposta</span>
+        <h2 class="f3-headline">
+          <span id="render-f3-headline-text">o hub </span><span class="accent" id="render-f3-headline-accent">completo</span><span id="render-f3-headline-end"> do ecossistema pet.</span>
+        </h2>
+        <div class="f3-features">
+          <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat1">adoção com busca inteligente</span></div>
+          <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat2">visibilidade pra ONGs e protetores</span></div>
+          <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat3">marketplace e serviços num só lugar</span></div>
+        </div>
       </div>
-      <div class="field">
-        <label>palavra destaque</label>
-        <input type="text" id="f3-headline-accent" value="completo">
-      </div>
-      <div class="field">
-        <label>headline (final)</label>
-        <input type="text" id="f3-headline-end" value=" do ecossistema pet.">
-      </div>
-      <div class="field">
-        <label>feature 1</label>
-        <input type="text" id="f3-feat1" value="adoção com busca inteligente">
-      </div>
-      <div class="field">
-        <label>feature 2</label>
-        <input type="text" id="f3-feat2" value="visibilidade pra ONGs e protetores">
-      </div>
-      <div class="field">
-        <label>feature 3</label>
-        <input type="text" id="f3-feat3" value="marketplace e serviços num só lugar">
-      </div>
-      <div class="field">
-        <label>CTA</label>
-        <input type="text" id="f3-cta" value="faça parte">
+      <div class="f3-bottom">
+        <span class="f3-cta-text" id="render-f3-cta">siga e <strong>faça parte</strong></span>
+        <span class="handle-pill render-handle">@mybuddy.pet</span>
       </div>
     </div>
+    </div><!-- /frame-scaler -->
 
-    <!-- EXPORT -->
-    <div class="editor-section">
-      <h3>📤 exportar</h3>
-      <div class="export-section">
-        <button class="export-btn" id="btn-export-all">📥 baixar todos (1080×1350)</button>
-        <button class="export-btn" id="btn-export-zip">🗜 baixar ZIP (3 slides)</button>
-        <button class="export-btn secondary" id="btn-export-1">slide 1</button>
-        <button class="export-btn secondary" id="btn-export-2">slide 2</button>
-        <button class="export-btn secondary" id="btn-export-3">slide 3</button>
-      </div>
-      <div class="info-box" style="margin-top:10px">
-        💡 PNGs em <strong>1080×1350</strong> prontos pra Instagram (4:5). <br>Use <strong>Ctrl+E</strong> para exportar todos.
-      </div>
-    </div>
+  </div>
+</main>
 
-  </aside>
-
-  <!-- ============ MAIN ============ -->
-  <main class="main">
-    <div class="main-header">
-      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir editor">
-        <span></span><span></span><span></span>
-      </button>
-      <h2>preview ao vivo</h2>
-      <p>edite à esquerda · exporte abaixo</p>
-    </div>
-
-    <!-- overlay escurece o fundo quando sidebar está aberta no mobile -->
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
-
-    <div class="carousel">
-
-      <!-- FRAME 1 -->
-      <div class="frame-scaler">
-      <div class="frame frame-1" id="frame-1">
-        <span class="frame-label"><span>01</span> · problema</span>
-        <div class="top">
-          <div class="mb-logo">MyBuddy</div>
-          <div class="counter"><span class="active"></span><span></span><span></span></div>
-        </div>
-        <div class="f1-pet" id="f1-pet">
-          <div class="icon">🐶</div>
-          <div class="txt">imagem aqui</div>
-        </div>
-        <div class="f1-middle">
-          <p class="f1-eyebrow" id="render-f1-eyebrow">você sabia?</p>
-          <h2 class="f1-headline">
-            <span id="render-f1-headline-text">milhões de pets </span><span class="accent" id="render-f1-headline-accent">esperam</span><span id="render-f1-headline-end"> um lar no Brasil.</span>
-          </h2>
-          <p class="f1-subline" id="render-f1-subline">ONGs sem visibilidade. Adotantes perdidos em redes sociais. Tutores sem guia confiável.</p>
-        </div>
-        <div class="f1-bottom">
-          <span class="handle-pill render-handle">@mybuddy.pet</span>
-          <span class="f1-swipe">arraste →</span>
-        </div>
-      </div>
-      </div><!-- /frame-scaler -->
-
-      <!-- FRAME 2 -->
-      <div class="frame-scaler">
-      <div class="frame frame-2" id="frame-2">
-        <span class="frame-label"><span>02</span> · dados</span>
-        <div class="f2-deco-img" id="f2-deco"></div>
-        <div class="top">
-          <div class="mb-logo">MyBuddy</div>
-          <div class="counter"><span></span><span class="active"></span><span></span></div>
-        </div>
-        <h3 class="f2-title" id="render-f2-title">o cenário hoje</h3>
-        <p class="f2-subtitle" id="render-f2-subtitle">números que mostram a urgência</p>
-        <div class="f2-stats">
-          <div class="f2-stat">
-            <div class="num" id="render-f2-num1">25%</div>
-            <div class="info">
-              <div class="label" id="render-f2-label1">abandono de cães</div>
-              <div class="detail" id="render-f2-detail1">~20,2 milhões de cães abandonados</div>
-            </div>
-          </div>
-          <div class="f2-stat">
-            <div class="num" id="render-f2-num2">26%</div>
-            <div class="info">
-              <div class="label" id="render-f2-label2">abandono de gatos</div>
-              <div class="detail" id="render-f2-detail2">~10 milhões de gatos abandonados</div>
-            </div>
-          </div>
-          <div class="f2-stat positive">
-            <div class="num" id="render-f2-num3">73%</div>
-            <div class="info">
-              <div class="label" id="render-f2-label3">interesse por adoção</div>
-              <div class="detail" id="render-f2-detail3">acima da média histórica no país</div>
-            </div>
-          </div>
-        </div>
-        <p class="f2-source" id="render-f2-source">fonte: dados brasileiros de abandono pet</p>
-      </div>
-      </div><!-- /frame-scaler -->
-
-      <!-- FRAME 3 -->
-      <div class="frame-scaler">
-      <div class="frame frame-3" id="frame-3">
-        <span class="frame-label"><span>03</span> · solução</span>
-        <div class="f3-deco-img" id="f3-deco"></div>
-        <div class="top">
-          <div class="mb-logo">MyBuddy</div>
-          <div class="counter"><span></span><span></span><span class="active"></span></div>
-        </div>
-        <div class="f3-middle">
-          <span class="f3-tag" id="render-f3-tag">a nossa proposta</span>
-          <h2 class="f3-headline">
-            <span id="render-f3-headline-text">o hub </span><span class="accent" id="render-f3-headline-accent">completo</span><span id="render-f3-headline-end"> do ecossistema pet.</span>
-          </h2>
-          <div class="f3-features">
-            <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat1">adoção com busca inteligente</span></div>
-            <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat2">visibilidade pra ONGs e protetores</span></div>
-            <div class="f3-feature"><span class="dot"></span><span id="render-f3-feat3">marketplace e serviços num só lugar</span></div>
-          </div>
-        </div>
-        <div class="f3-bottom">
-          <span class="f3-cta-text" id="render-f3-cta">siga e <strong>faça parte</strong></span>
-          <span class="handle-pill render-handle">@mybuddy.pet</span>
-        </div>
-      </div>
-      </div><!-- /frame-scaler -->
-
-    </div>
-  </main>
-
-  <script type="module" src="/src/main.ts"></script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

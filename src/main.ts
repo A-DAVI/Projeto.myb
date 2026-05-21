@@ -1,73 +1,72 @@
-// Ponto de entrada da aplicação. Orquestra módulos sem esconder a reatividade.
+// Ponto de entrada. Orquestra módulos sem esconder a reatividade.
 
 import './styles/tokens.css'
 import './styles/editor.css'
 import './styles/slides.css'
 
-import { store, DEFAULT_STATE } from './state'
+import { store, DEFAULT_STATE, Slide2Layout } from './state'
 import { initColorPickers, applyColors } from './editor/ColorPicker'
 import { initTextBindings, syncInputsToState, applyHandle, applyCTA } from './editor/bindings'
 import { initImageUploaders, restoreImages } from './editor/ImageUploader'
 import { exportFrame, exportAll, exportZip } from './export/PngExporter'
+import { renderSlide2 } from './slides/Slide2'
+import {
+  loadApiKey, saveApiKey, clearApiKey,
+  generateFullCarousel, generateSlide1, generateSlide2, generateSlide3,
+} from './ai/generator'
 
 // ===== INICIALIZAÇÃO =====
 
 function init(): void {
   const state = store.get()
 
-  // 1. Aplica estado salvo nos inputs da sidebar e nos slides
   applyColors(state.colors)
   syncInputsToState(state)
   applyHandle(state.handle)
   applyCTA(state.f3.cta)
-  applyStateToSlides(state)
+  applyStateToSlide1(state)
+  renderSlide2(state)       // renderiza o corpo do slide 2 conforme o layout salvo
+  applyStateToSlide3(state)
   restoreImages(state.images)
 
-  // 2. Liga eventos dos controles ao store
+  // restaura a chave de API na sidebar (não faz parte do EditorState)
+  const keyInput = document.getElementById('ai-key') as HTMLInputElement | null
+  if (keyInput) keyInput.value = loadApiKey()
+
   initColorPickers()
   initTextBindings()
   initImageUploaders()
   initExportButtons()
   initPersistenceButtons()
-  initKeyboardShortcuts()
+  initLayoutSelector()
+  initAIButtons()
   initSidebarToggle()
+  initKeyboardShortcuts()
 
-  // 3. Toda vez que o estado mudar, re-renderiza os slides
-  // (mudanças de texto já atualizam inline em bindings.ts; aqui cobrimos resets/imports)
+  // quando o estado muda por reset ou import JSON, re-renderiza tudo
   store.subscribe(s => {
     applyColors(s.colors)
     syncInputsToState(s)
     applyHandle(s.handle)
     applyCTA(s.f3.cta)
-    applyStateToSlides(s)
+    applyStateToSlide1(s)
+    renderSlide2(s)
+    applyStateToSlide3(s)
     restoreImages(s.images)
   })
 }
 
-// Sincroniza o DOM dos slides com o estado (usado após reset/import JSON)
-function applyStateToSlides(state: ReturnType<typeof store.get>): void {
-  const setText = (id: string, val: string) => {
-    const el = document.getElementById(id)
-    if (el) el.textContent = val
-  }
+// ===== RENDER HELPERS =====
 
+function applyStateToSlide1(state: ReturnType<typeof store.get>): void {
   setText('render-f1-eyebrow', state.f1.eyebrow)
   setText('render-f1-headline-text', state.f1.headlineText)
   setText('render-f1-headline-accent', state.f1.headlineAccent)
   setText('render-f1-headline-end', state.f1.headlineEnd)
   setText('render-f1-subline', state.f1.subline)
-  setText('render-f2-title', state.f2.title)
-  setText('render-f2-subtitle', state.f2.subtitle)
-  setText('render-f2-source', state.f2.source)
-  setText('render-f2-num1', state.f2.stats[0].num)
-  setText('render-f2-label1', state.f2.stats[0].label)
-  setText('render-f2-detail1', state.f2.stats[0].detail)
-  setText('render-f2-num2', state.f2.stats[1].num)
-  setText('render-f2-label2', state.f2.stats[1].label)
-  setText('render-f2-detail2', state.f2.stats[1].detail)
-  setText('render-f2-num3', state.f2.stats[2].num)
-  setText('render-f2-label3', state.f2.stats[2].label)
-  setText('render-f2-detail3', state.f2.stats[2].detail)
+}
+
+function applyStateToSlide3(state: ReturnType<typeof store.get>): void {
   setText('render-f3-tag', state.f3.tag)
   setText('render-f3-headline-text', state.f3.headlineText)
   setText('render-f3-headline-accent', state.f3.headlineAccent)
@@ -78,19 +77,36 @@ function applyStateToSlides(state: ReturnType<typeof store.get>): void {
   applyCTA(state.f3.cta)
 }
 
-// ===== BOTÕES DE EXPORT =====
+function setText(id: string, val: string): void {
+  const el = document.getElementById(id)
+  if (el) el.textContent = val
+}
+
+// ===== SELETOR DE LAYOUT (slide 2) =====
+
+function initLayoutSelector(): void {
+  document.querySelectorAll<HTMLElement>('.layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layout = btn.dataset.layout as Slide2Layout
+      store.set({ f2: { layout } })
+      // renderSlide2 é chamado pelo subscriber do store acima
+    })
+  })
+}
+
+// ===== EXPORT =====
 
 function initExportButtons(): void {
   const wrap = (fn: () => Promise<void>, btnId: string) => {
     const btn = document.getElementById(btnId) as HTMLButtonElement | null
     if (!btn) return
+    const label = btn.textContent ?? ''
     btn.addEventListener('click', async () => {
       btn.disabled = true
       btn.textContent = '⏳ exportando...'
       try { await fn() } catch (e) { alert('Erro ao exportar: ' + (e as Error).message) }
-      finally { btn.disabled = false; btn.textContent = btn.dataset.label ?? '' }
+      finally { btn.disabled = false; btn.textContent = label }
     })
-    btn.dataset.label = btn.textContent ?? ''
   }
 
   wrap(exportAll, 'btn-export-all')
@@ -100,35 +116,30 @@ function initExportButtons(): void {
   wrap(() => exportFrame(3), 'btn-export-3')
 }
 
-// ===== PERSISTÊNCIA: export/import JSON + reset =====
+// ===== PERSISTÊNCIA =====
 
 function initPersistenceButtons(): void {
   document.getElementById('btn-export-json')?.addEventListener('click', () => {
-    const json = store.toJSON()
-    const blob = new Blob([json], { type: 'application/json' })
+    const blob = new Blob([store.toJSON()], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'mybuddy-config.json'
     a.click()
   })
 
-  document.getElementById('import-json')?.addEventListener('change', (e) => {
+  document.getElementById('import-json')?.addEventListener('change', e => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => {
-      try {
-        store.fromJSON(ev.target?.result as string)
-      } catch {
-        alert('Arquivo JSON inválido.')
-      }
+      try { store.fromJSON(ev.target?.result as string) }
+      catch { alert('Arquivo JSON inválido.') }
     }
     reader.readAsText(file)
   })
 
   document.getElementById('btn-reset')?.addEventListener('click', () => {
     if (confirm('Resetar todos os textos e cores para o padrão? As imagens serão mantidas.')) {
-      // mantém imagens, reseta o resto
       const images = store.get().images
       store.reset()
       store.set({ images })
@@ -136,15 +147,91 @@ function initPersistenceButtons(): void {
   })
 }
 
-// ===== ATALHOS DE TECLADO =====
+// ===== IA =====
 
-function initKeyboardShortcuts(): void {
-  document.addEventListener('keydown', (e) => {
-    // Ctrl+E → exportar todos
-    if (e.ctrlKey && e.key === 'e') {
-      e.preventDefault()
-      exportAll().catch(err => alert('Erro ao exportar: ' + err.message))
-    }
+function getAIKey(): string | null {
+  const keyInput = document.getElementById('ai-key') as HTMLInputElement | null
+  const key = keyInput?.value.trim() ?? ''
+  if (!key) { alert('Cole sua chave da API Anthropic (sk-ant-...) no campo "chave da API".'); return null }
+  saveApiKey(key)
+  return key
+}
+
+function getTopic(): string {
+  const el = document.getElementById('ai-topic') as HTMLTextAreaElement | null
+  return el?.value.trim() || 'adoção de pets no Brasil — problema, dados e solução MyBuddy'
+}
+
+function withLoadingBtn(btnId: string, fn: () => Promise<void>): void {
+  const btn = document.getElementById(btnId) as HTMLButtonElement | null
+  if (!btn) return
+
+  // desabilita todos os botões de IA durante a geração
+  const aiBtns = document.querySelectorAll<HTMLButtonElement>('.ai-btn')
+  aiBtns.forEach(b => { b.disabled = true; b.classList.add('loading') })
+
+  fn()
+    .catch(e => alert('Erro na geração com IA: ' + (e as Error).message))
+    .finally(() => {
+      aiBtns.forEach(b => { b.disabled = false; b.classList.remove('loading') })
+    })
+}
+
+function initAIButtons(): void {
+  // chave — salvar ao digitar, limpar com botão
+  const keyInput = document.getElementById('ai-key') as HTMLInputElement | null
+  keyInput?.addEventListener('change', () => saveApiKey(keyInput.value.trim()))
+  document.getElementById('btn-clear-key')?.addEventListener('click', () => {
+    clearApiKey()
+    if (keyInput) keyInput.value = ''
+  })
+
+  // gerar carrossel completo
+  document.getElementById('btn-gen-all')?.addEventListener('click', () => {
+    withLoadingBtn('btn-gen-all', async () => {
+      const key = getAIKey(); if (!key) return
+      const payload = await generateFullCarousel(key, getTopic())
+      store.set({
+        f1: payload.f1,
+        f2: {
+          title: payload.f2.title,
+          subtitle: payload.f2.subtitle,
+          source: payload.f2.source,
+          stats: payload.f2.stats,
+          cards: payload.f2.cards,
+          quote: payload.f2.quote,
+        },
+        f3: payload.f3,
+      })
+    })
+  })
+
+  // gerar slide 1
+  document.getElementById('btn-gen-1')?.addEventListener('click', () => {
+    withLoadingBtn('btn-gen-1', async () => {
+      const key = getAIKey(); if (!key) return
+      const result = await generateSlide1(key, getTopic(), store.get().f1)
+      store.set({ f1: result })
+    })
+  })
+
+  // gerar slide 2
+  document.getElementById('btn-gen-2')?.addEventListener('click', () => {
+    withLoadingBtn('btn-gen-2', async () => {
+      const key = getAIKey(); if (!key) return
+      const { layout } = store.get().f2
+      const result = await generateSlide2(key, getTopic(), layout, store.get().f2)
+      store.set({ f2: result })
+    })
+  })
+
+  // gerar slide 3
+  document.getElementById('btn-gen-3')?.addEventListener('click', () => {
+    withLoadingBtn('btn-gen-3', async () => {
+      const key = getAIKey(); if (!key) return
+      const result = await generateSlide3(key, getTopic(), store.get().f3)
+      store.set({ f3: result })
+    })
   })
 }
 
@@ -161,19 +248,27 @@ function initSidebarToggle(): void {
 
   toggle.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open())
   overlay.addEventListener('click', close)
-
-  // fecha a sidebar ao confirmar qualquer export no mobile (UX: volta ao preview)
   document.querySelectorAll<HTMLButtonElement>('[id^="btn-export"]').forEach(btn => {
     btn.addEventListener('click', () => { if (window.innerWidth <= 768) close() })
   })
 }
 
-// aguarda o DOM estar pronto (Vite garante defer, mas por segurança)
+// ===== ATALHOS =====
+
+function initKeyboardShortcuts(): void {
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'e') {
+      e.preventDefault()
+      exportAll().catch(err => alert('Erro ao exportar: ' + err.message))
+    }
+  })
+}
+
+// evita TS reclamar de DEFAULT_STATE não usado aqui diretamente
+void DEFAULT_STATE
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
 } else {
   init()
 }
-
-// evita TS de reclamar de DEFAULT_STATE não usado diretamente aqui
-void DEFAULT_STATE

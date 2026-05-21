@@ -364,6 +364,116 @@
 
 .frame-3 .handle-pill { background: var(--bg); color: var(--ink); }
 
+/* ===== LAYOUT CARDS (slide 2) ===== */
+
+/* #f2-body ocupa o espaço flexível entre o topo e a fonte */
+#f2-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.f2-cards {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  margin: 12px 0 8px;
+}
+
+.f2-card {
+  flex: 1;
+  background: rgba(26, 24, 21, 0.06);
+  border-radius: 8px;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.f2-card--positive { background: rgba(85, 107, 47, 0.12); }
+
+.f2-card-emoji { font-size: 22px; line-height: 1; }
+
+.f2-card-num {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--red);
+  line-height: 1;
+}
+
+.f2-card--positive .f2-card-num { color: var(--olive); }
+
+.f2-card-label {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  font-size: 9px;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+/* ===== LAYOUT QUOTE (slide 2) ===== */
+
+.f2-quote-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.f2-quote-highlight {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 60px;
+  line-height: 1;
+  color: var(--red);
+  letter-spacing: -0.02em;
+}
+
+.f2-quote-divider {
+  width: 30px;
+  height: 3px;
+  background: var(--orange);
+  border-radius: 2px;
+  margin: 10px 0;
+}
+
+.f2-quote-text {
+  font-family: var(--font-brand);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink);
+  max-width: 260px;
+}
+
+.f2-quote-author {
+  font-size: 9px;
+  color: var(--ink);
+  opacity: 0.5;
+  margin-top: 10px;
+  font-style: italic;
+}
+
+/* ===== EXPORT: CARDS e QUOTE em alta resolução ===== */
+
+.frame[data-exporting] .f2-cards { gap: 30px; margin: 36px 0 24px; }
+.frame[data-exporting] .f2-card { padding: 36px 18px; border-radius: 24px; gap: 12px; }
+.frame[data-exporting] .f2-card-emoji { font-size: 66px; }
+.frame[data-exporting] .f2-card-num { font-size: 66px; }
+.frame[data-exporting] .f2-card-label { font-size: 27px; }
+
+.frame[data-exporting] .f2-quote-highlight { font-size: 180px; }
+.frame[data-exporting] .f2-quote-divider { width: 90px; height: 9px; margin: 30px 0; }
+.frame[data-exporting] .f2-quote-text { font-size: 42px; max-width: 900px; }
+.frame[data-exporting] .f2-quote-author { font-size: 27px; margin-top: 30px; }
+
 /* ===== WRAPPER DE ESCALA RESPONSIVA ===== */
 /* O frame mantém 360×450 internamente; o wrapper encolhe com transform
    para não quebrar nenhuma lógica de posicionamento interno dos slides. */
