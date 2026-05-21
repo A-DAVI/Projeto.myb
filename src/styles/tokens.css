@@ -1,0 +1,14 @@
+/* Design tokens — todas as cores e fontes da marca MyBuddy */
+:root {
+  --bg: #DADAB8;
+  --orange: #E67E22;
+  --olive: #556B2F;
+  --ink: #1A1815;
+  --red: #C84A2E;
+  --white: #FFFFFF;
+
+  --font-brand: 'DynaPuff', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
