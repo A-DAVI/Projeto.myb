@@ -30,6 +30,7 @@ function init(): void {
   initExportButtons()
   initPersistenceButtons()
   initKeyboardShortcuts()
+  initSidebarToggle()
 
   // 3. Toda vez que o estado mudar, re-renderiza os slides
   // (mudanças de texto já atualizam inline em bindings.ts; aqui cobrimos resets/imports)
@@ -144,6 +145,26 @@ function initKeyboardShortcuts(): void {
       e.preventDefault()
       exportAll().catch(err => alert('Erro ao exportar: ' + err.message))
     }
+  })
+}
+
+// ===== TOGGLE SIDEBAR (mobile) =====
+
+function initSidebarToggle(): void {
+  const toggle = document.getElementById('sidebar-toggle')
+  const sidebar = document.querySelector<HTMLElement>('.sidebar')
+  const overlay = document.getElementById('sidebar-overlay')
+  if (!toggle || !sidebar || !overlay) return
+
+  const open = () => { sidebar.classList.add('open'); toggle.classList.add('open'); overlay.classList.add('visible') }
+  const close = () => { sidebar.classList.remove('open'); toggle.classList.remove('open'); overlay.classList.remove('visible') }
+
+  toggle.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open())
+  overlay.addEventListener('click', close)
+
+  // fecha a sidebar ao confirmar qualquer export no mobile (UX: volta ao preview)
+  document.querySelectorAll<HTMLButtonElement>('[id^="btn-export"]').forEach(btn => {
+    btn.addEventListener('click', () => { if (window.innerWidth <= 768) close() })
   })
 }
 

@@ -276,3 +276,99 @@ body {
   justify-content: center;
   flex-wrap: wrap;
 }
+
+/* ===== BOTÃO TOGGLE SIDEBAR (oculto no desktop) ===== */
+.sidebar-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.sidebar-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #f0e8dc;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+/* X quando aberto */
+.sidebar-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.sidebar-toggle.open span:nth-child(2) { opacity: 0; }
+.sidebar-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ===== OVERLAY (mobile) ===== */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 99;
+}
+
+.sidebar-overlay.visible { display: block; }
+
+/* ===== RESPONSIVO ===== */
+
+/* Tablet: sidebar mais estreita, frames menores via scale */
+@media (max-width: 1100px) {
+  .sidebar { width: 290px; padding: 18px; }
+}
+
+/* Mobile: sidebar vira drawer, frames escalam para caber na tela */
+@media (max-width: 768px) {
+  body { flex-direction: column; }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: min(320px, 88vw);
+    height: 100dvh;
+    z-index: 100;
+    transform: translateX(-110%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid #444;
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .main {
+    padding: 20px 16px 40px;
+    width: 100%;
+    min-height: 100dvh;
+  }
+
+  .main-header { position: relative; }
+
+  .sidebar-toggle { display: flex; }
+
+  .main-header h2 { font-size: 15px; }
+
+  .carousel {
+    gap: 20px;
+    /* scroll horizontal para ver os 3 slides sem encolher demais */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 16px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* cada frame recebe um wrapper que dita o espaço no layout */
+  .frame-scaler {
+    flex-shrink: 0;
+    scroll-snap-align: center;
+  }
+}
+
+/* Telas muito pequenas: reduz a escala dos frames */
+@media (max-width: 480px) {
+  .main { padding: 16px 10px 40px; }
+}

@@ -238,13 +238,20 @@
   <!-- ============ MAIN ============ -->
   <main class="main">
     <div class="main-header">
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir editor">
+        <span></span><span></span><span></span>
+      </button>
       <h2>preview ao vivo</h2>
       <p>edite à esquerda · exporte abaixo</p>
     </div>
 
+    <!-- overlay escurece o fundo quando sidebar está aberta no mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <div class="carousel">
 
       <!-- FRAME 1 -->
+      <div class="frame-scaler">
       <div class="frame frame-1" id="frame-1">
         <span class="frame-label"><span>01</span> · problema</span>
         <div class="top">
@@ -267,8 +274,10 @@
           <span class="f1-swipe">arraste →</span>
         </div>
       </div>
+      </div><!-- /frame-scaler -->
 
       <!-- FRAME 2 -->
+      <div class="frame-scaler">
       <div class="frame frame-2" id="frame-2">
         <span class="frame-label"><span>02</span> · dados</span>
         <div class="f2-deco-img" id="f2-deco"></div>
@@ -303,8 +312,10 @@
         </div>
         <p class="f2-source" id="render-f2-source">fonte: dados brasileiros de abandono pet</p>
       </div>
+      </div><!-- /frame-scaler -->
 
       <!-- FRAME 3 -->
+      <div class="frame-scaler">
       <div class="frame frame-3" id="frame-3">
         <span class="frame-label"><span>03</span> · solução</span>
         <div class="f3-deco-img" id="f3-deco"></div>
@@ -328,6 +339,7 @@
           <span class="handle-pill render-handle">@mybuddy.pet</span>
         </div>
       </div>
+      </div><!-- /frame-scaler -->
 
     </div>
   </main>
