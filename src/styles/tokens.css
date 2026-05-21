@@ -1,4 +1,6 @@
-/* Design tokens — todas as cores e fontes da marca MyBuddy */
+/* Design tokens — paleta MyBuddy e tipografia.
+   As cores são CSS custom properties no :root pra que ColorStore consiga
+   sobrescrever em runtime sem rebuild. */
 :root {
   --bg: #DADAB8;
   --orange: #E67E22;
@@ -9,6 +11,14 @@
 
   --font-brand: 'DynaPuff', sans-serif;
   --font-body: 'Inter', sans-serif;
+
+  /* tons neutros do editor */
+  --shell-bg: #2a2724;
+  --shell-panel: #1f1d1a;
+  --shell-input: #2a2724;
+  --shell-border: #3a3633;
+  --shell-text: #f0e8dc;
+  --shell-muted: #888;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

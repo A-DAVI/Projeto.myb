@@ -1,0 +1,133 @@
+/* Estilos base: shell do app, scaler dos frames, frame intrínseco em 1080×1350.
+   Cada layout traz CSS próprio via <style data-layout-id="...">. */
+
+body {
+  background: var(--shell-bg);
+  min-height: 100vh;
+  font-family: var(--font-body);
+  color: var(--shell-text);
+}
+
+/* O #app muda de role conforme a view (galeria vs. editor) — o data-view do
+   body é setado pelo main.ts. */
+body[data-view="editor"] #app {
+  display: flex;
+  min-height: 100vh;
+}
+
+body[data-view="gallery"] #app,
+body[data-view="not-found"] #app {
+  display: block;
+  min-height: 100vh;
+}
+
+/* ===== FRAME WRAPPER =====
+   Cada slide vive dentro de .frame (1080×1350 intrínseco) — autorado em px reais.
+   O .frame-scaler é o wrapper externo que aplica transform: scale() pra mostrar
+   o frame numa escala menor no preview e na galeria, sem alterar o conteúdo. */
+
+.frame-scaler {
+  --scale: 0.30;
+  width: calc(1080px * var(--scale));
+  height: calc(1350px * var(--scale));
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+
+.frame-mount {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1080px;
+  height: 1350px;
+  transform-origin: top left;
+  transform: scale(var(--scale));
+}
+
+/* a .frame em si: o layout define width/height/padding via seu CSS, mas
+   damos um fallback sane caso o layout esqueça. */
+.frame {
+  width: 1080px;
+  height: 1350px;
+  background: var(--bg);
+  font-family: var(--font-body);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* etiqueta posicionada por cima do scaler — visível só no preview do editor,
+   omitida pelo exporter via [data-no-export]. */
+.frame-label {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #888;
+  z-index: 5;
+  font-family: var(--font-body);
+}
+.frame-label span { color: var(--orange); }
+
+/* ===== ELEMENTOS COMPARTILHADOS (logo, handle pill, counter) ===== */
+/* Tamanhos em px de export (1080×1350). O scaler reduz proporcionalmente. */
+
+.mb-logo {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  color: var(--orange);
+  font-size: 66px;
+  letter-spacing: -0.01em;
+}
+.mb-logo--inverted { color: var(--bg); }
+
+.handle-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 18px 36px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 150px;
+  font-family: var(--font-brand);
+  font-size: 33px;
+  font-weight: 500;
+}
+.handle-pill--light {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.counter { display: flex; gap: 12px; }
+.counter span {
+  width: 48px; height: 9px;
+  background: rgba(26, 24, 21, 0.2);
+  border-radius: 6px;
+}
+.counter span.active {
+  background: var(--orange);
+  width: 72px;
+}
+/* counter sobre fundo escuro (slide 3 institucional, etc.) */
+.frame .top .mb-logo--inverted ~ .counter span { background: rgba(218, 218, 184, 0.25); }
+.frame .top .mb-logo--inverted ~ .counter span.active { background: var(--orange); }
+
+/* ===== NOT FOUND ===== */
+.not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px;
+  gap: 16px;
+  text-align: center;
+}
+.not-found h1 { font-family: var(--font-brand); color: var(--orange); font-size: 48px; }
+.not-found code { background: var(--shell-panel); padding: 2px 6px; border-radius: 3px; }
+.not-found .export-btn { max-width: 280px; }

@@ -1,27 +1,37 @@
-// Encapsula html2canvas e a lógica de escala para exportar slides em 1080×1350.
+// Exporter PNG genérico — trabalha com qualquer Layout (N slides).
+//
+// Estratégia: o .frame já é intrinsecamente 1080×1350. O preview só aplica
+// transform: scale() externo. Pra exportar, desligamos o transform e capturamos.
+// Isso elimina o regime [data-exporting] e a duplicação de CSS preview/export.
 
-import html2canvas from 'html2canvas'
-import JSZip from 'jszip'
+import html2canvas from "html2canvas"
+import JSZip from "jszip"
+import type { Layout } from "../core/types"
+import type { Preview } from "../editor/Preview"
 
-// Estilos de exportação injetados inline para evitar dependência de classe CSS global
-const EXPORT_STYLE = `
-  width: 1080px !important;
-  height: 1350px !important;
-  padding: 84px !important;
-  position: absolute !important;
-  top: -9999px;
-  left: -9999px;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-`
+async function renderFrame(preview: Preview, index: number): Promise<HTMLCanvasElement> {
+  const frame = preview.frameAt(index)
+  if (!frame) throw new Error(`frame ${index} não encontrado no DOM`)
 
-async function renderFrame(num: number): Promise<HTMLCanvasElement> {
-  const frame = document.getElementById(`frame-${num}`) as HTMLElement
-  if (!frame) throw new Error(`frame-${num} não encontrado`)
+  // O wrapper .frame-scaler aplica o transform; o frame interno é 1080×1350.
+  const scaler = frame.closest<HTMLElement>(".frame-scaler")
+  const original = scaler?.style.cssText ?? ""
 
-  frame.setAttribute('data-exporting', '1')
-  // aguarda o browser repintar com as classes de exportação
-  await new Promise(r => setTimeout(r, 200))
+  // Move o scaler pra fora da viewport e remove o scale para o html2canvas
+  // pegar as dimensões reais sem cortes.
+  if (scaler) {
+    scaler.style.cssText = `
+      position: absolute;
+      top: -99999px;
+      left: -99999px;
+      width: 1080px;
+      height: 1350px;
+      transform: none;
+    `
+  }
+
+  // espera o browser repintar
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
   try {
     return await html2canvas(frame, {
@@ -31,47 +41,50 @@ async function renderFrame(num: number): Promise<HTMLCanvasElement> {
       backgroundColor: null,
       useCORS: true,
       logging: false,
-      x: 0,
-      y: 0,
       windowWidth: 1080,
       windowHeight: 1350,
+      // ignora elementos marcados (ex: label "01 · problema") que não devem entrar na arte final
+      ignoreElements: (el: Element) => el instanceof HTMLElement && el.dataset.noExport === "",
     })
   } finally {
-    frame.removeAttribute('data-exporting')
+    if (scaler) scaler.style.cssText = original
   }
 }
 
-// Não usado diretamente mas deixamos como referência para o CSS via attr
-export { EXPORT_STYLE }
-
-export async function exportFrame(num: number): Promise<void> {
-  const canvas = await renderFrame(num)
-  download(canvas.toDataURL('image/png'), `mybuddy-slide-${num}.png`)
+function filename(layout: Layout, index: number): string {
+  const slide = layout.slides[index]
+  return `mybuddy-${layout.id}-slide-${index + 1}-${slide.id}.png`
 }
 
-export async function exportAll(): Promise<void> {
-  for (let i = 1; i <= 3; i++) {
-    await exportFrame(i)
+export async function exportFrame(preview: Preview, layout: Layout, index: number): Promise<void> {
+  const canvas = await renderFrame(preview, index)
+  download(canvas.toDataURL("image/png"), filename(layout, index))
+}
+
+export async function exportAll(preview: Preview, layout: Layout): Promise<void> {
+  for (let i = 0; i < layout.slides.length; i++) {
+    const canvas = await renderFrame(preview, i)
+    download(canvas.toDataURL("image/png"), filename(layout, i))
+    // dá tempo do navegador processar o download anterior
     await new Promise(r => setTimeout(r, 400))
   }
 }
 
-export async function exportZip(): Promise<void> {
+export async function exportZip(preview: Preview, layout: Layout): Promise<void> {
   const zip = new JSZip()
-  for (let i = 1; i <= 3; i++) {
-    const canvas = await renderFrame(i)
-    // toDataURL retorna "data:image/png;base64,XXX" — pega só o base64
-    const base64 = canvas.toDataURL('image/png').split(',')[1]
-    zip.file(`mybuddy-slide-${i}.png`, base64, { base64: true })
-    await new Promise(r => setTimeout(r, 300))
+  for (let i = 0; i < layout.slides.length; i++) {
+    const canvas = await renderFrame(preview, i)
+    const base64 = canvas.toDataURL("image/png").split(",")[1]
+    zip.file(filename(layout, i), base64, { base64: true })
+    await new Promise(r => setTimeout(r, 200))
   }
-  const blob = await zip.generateAsync({ type: 'blob' })
-  download(URL.createObjectURL(blob), 'mybuddy-carrossel.zip')
+  const blob = await zip.generateAsync({ type: "blob" })
+  download(URL.createObjectURL(blob), `mybuddy-${layout.id}.zip`)
 }
 
-function download(href: string, filename: string): void {
-  const a = document.createElement('a')
+function download(href: string, name: string): void {
+  const a = document.createElement("a")
   a.href = href
-  a.download = filename
+  a.download = name
   a.click()
 }
