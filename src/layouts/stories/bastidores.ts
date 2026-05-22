@@ -69,7 +69,7 @@ export const bastidores: Layout = {
           <div class="bst-center">
             <p class="bst-eyebrow">${s.eyebrow}</p>
             <p class="bst-story">${html.raw(richText(s.story))}</p>
-            ${s.detail ? html`<p class="bst-detail">${s.detail}</p>` : ""}
+            ${html.raw(s.detail ? html`<p class="bst-detail">${s.detail}</p>` : "")}
           </div>
           <div class="bst-bottom">
             ${html.raw(handlePill(ctx))}

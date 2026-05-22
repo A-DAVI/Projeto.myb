@@ -43,7 +43,7 @@ export const storyRapido: Layout = {
           <div class="sr-content">
             <p class="sr-eyebrow">${s.eyebrow}</p>
             <h1 class="sr-headline">${html.raw(richText(s.headline))}</h1>
-            ${s.body ? html`<p class="sr-body">${s.body}</p>` : ""}
+            ${html.raw(s.body ? html`<p class="sr-body">${s.body}</p>` : "")}
           </div>
           <div class="sr-bottom">
             <span class="sr-cta">${s.cta}</span>

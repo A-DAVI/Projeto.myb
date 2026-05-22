@@ -145,6 +145,17 @@ export const layouts: Layout[] = [
 
 Pronto. Galeria, sidebar e exporter funcionam automaticamente.
 
+> **Regra sobre defaults e HTML:** defaults de fields contêm apenas texto puro (nunca tags HTML).
+> Para destaque visual, use a sintaxe `{{palavra}}` em fields `richtext`. Para estrutura HTML
+> (parágrafos, containers), defina no template do slide — não no `default`.
+>
+> Se precisar de HTML condicional dentro de um template `html\`...\``, envolva em `html.raw()`:
+> ```ts
+> ${html.raw(s.campo ? html`<p>${s.campo}</p>` : "")}
+> ```
+> Sem o `html.raw()`, o resultado do `html` interno é uma string que o template pai re-escapa,
+> gerando `<p>` literal visível no preview.
+
 ## Como criar um layout de Story
 
 Mesma estrutura, mas com `format: "story"` e frames em 1080×1920.
