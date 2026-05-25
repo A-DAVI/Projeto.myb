@@ -1,0 +1,12 @@
+{
+  "layoutId": "dado-destaque",
+  "state": {
+    "dado": {
+      "eyebrow": "você sabia?",
+      "number": "73%",
+      "statement": "dos brasileiros gostariam de adotar um pet — mas faltam conexões entre quem quer ajudar e quem precisa de ajuda.",
+      "source": "fonte: pesquisa nacional pet, 2024",
+      "cta": "é isso que queremos mudar."
+    }
+  }
+}

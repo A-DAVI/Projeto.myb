@@ -1,25 +1,203 @@
-// Layout "Pet pra adoção (post)" — versão carrossel do story de mesmo tema.
+// Layout "Pet pra adoção (post)" — versão carrossel.
 // Divulga 1 a 5 pets num único post: capa + slots de pet + CTA final.
 //
-// Como funciona o "flexível 1-5 pets":
-//   - Os 5 slots de pet sempre aparecem na sidebar pra edição
-//   - Slot com nome vazio mostra estado placeholder ("preencha as infos...")
-//   - Na hora de exportar, você escolhe os slides que quer baixar
+// Foto domina ~60% do slide (810px de 1350), texto embaixo.
 //
-// Estilo visual: foto domina ~60% do slide (810px de 1350), texto embaixo.
+// ENQUADRAMENTO DA FOTO (drag + zoom):
+//   Cada slot de pet tem um crop ajustável. O usuário pode:
+//     • arrastar a imagem com o mouse pra reposicionar
+//     • rolar scroll pra dar zoom (100%-300%)
+//   O estado de crop é persistido no localStorage paralelo ao LayoutStore
+//   (chave própria desse layout) pra não poluir a sidebar com fields técnicos.
 //
 // IMPORTANTE: nunca aninhe html`...` dentro de outro html`...` — a interna
-// vira string e a externa escapa. Em vez disso, use html.raw() ou construa
-// fragmentos de string e injete via html.raw().
+// vira string e a externa escapa. Use html.raw() ou strings + esc().
 
 import type { Layout, SlideState, RenderContext } from "../core/types"
 import { html, richText, esc } from "../core/template"
 import { topBar, handlePill, frameLabel, bgImage } from "./_shared"
 
+// ─── crop state lateral (paralelo ao LayoutStore) ──────────────────────────
+// Guardado em localStorage com chave própria. Cada slot tem {x, y, zoom}.
+// x e y são percentuais 0-100 (background-position). zoom é 100-300 (%).
+
+type CropState = { x: number; y: number; zoom: number }
+const CROP_STORAGE_KEY = "mybuddy-editor:pet-adocao-post:crops"
+const DEFAULT_CROP: CropState = { x: 50, y: 50, zoom: 100 }
+
+function loadCrops(): Record<string, CropState> {
+  try {
+    const raw = localStorage.getItem(CROP_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveCrops(crops: Record<string, CropState>): void {
+  localStorage.setItem(CROP_STORAGE_KEY, JSON.stringify(crops))
+}
+
+function getCrop(petKey: string): CropState {
+  const all = loadCrops()
+  return all[petKey] ?? { ...DEFAULT_CROP }
+}
+
+function setCrop(petKey: string, crop: CropState): void {
+  const all = loadCrops()
+  all[petKey] = crop
+  saveCrops(all)
+}
+
+// ─── interação: drag + zoom ────────────────────────────────────────────────
+// Listeners globais delegados via document. Setup uma vez só (idempotente).
+// A re-render do Preview destrói os elementos, mas o listener fica no document.
+
+let interactionSetup = false
+
+function setupInteractions(): void {
+  if (interactionSetup) return
+  interactionSetup = true
+
+  let dragging: {
+    el: HTMLElement
+    petKey: string
+    startX: number
+    startY: number
+    startPosX: number
+    startPosY: number
+  } | null = null
+
+  // mousedown na foto → começa drag
+  document.addEventListener("mousedown", (e) => {
+    const target = e.target as HTMLElement
+    const photo = target.closest<HTMLElement>(".pap-photo[data-pet-key]")
+    if (!photo || !photo.classList.contains("has-image")) return
+
+    const petKey = photo.dataset.petKey!
+    const crop = getCrop(petKey)
+    dragging = {
+      el: photo,
+      petKey,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: crop.x,
+      startPosY: crop.y,
+    }
+    photo.style.cursor = "grabbing"
+    e.preventDefault()
+  })
+
+  // mousemove → atualiza posição
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return
+    const rect = dragging.el.getBoundingClientRect()
+    // dx/dy em px → converte pra delta percentual considerando o zoom.
+    // Quando zoom=100%, a imagem é do tamanho exato do container e não pode
+    // ser arrastada. Acima de 100%, o "excesso" é o que pode deslocar.
+    const crop = getCrop(dragging.petKey)
+    const zoom = crop.zoom / 100
+    const dxPx = e.clientX - dragging.startX
+    const dyPx = e.clientY - dragging.startY
+    // Quanto a imagem é maior que o container (em px de overflow)
+    const overflowX = rect.width * (zoom - 1)
+    const overflowY = rect.height * (zoom - 1)
+    // Se não há overflow, drag não faz nada
+    if (overflowX <= 0 && overflowY <= 0) return
+
+    // Converte delta de px pra delta de % (0-100 da bg-position)
+    const newX = overflowX > 0
+      ? clamp(dragging.startPosX - (dxPx / overflowX) * 100, 0, 100)
+      : 50
+    const newY = overflowY > 0
+      ? clamp(dragging.startPosY - (dyPx / overflowY) * 100, 0, 100)
+      : 50
+
+    setCrop(dragging.petKey, { x: newX, y: newY, zoom: crop.zoom })
+    applyCropToElement(dragging.el, { x: newX, y: newY, zoom: crop.zoom })
+  })
+
+  // mouseup → solta
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return
+    dragging.el.style.cursor = ""
+    dragging = null
+  })
+
+  // wheel → zoom (precisa de { passive: false } pra preventDefault funcionar)
+  document.addEventListener(
+    "wheel",
+    (e) => {
+      const target = e.target as HTMLElement
+      const photo = target.closest<HTMLElement>(".pap-photo[data-pet-key]")
+      if (!photo || !photo.classList.contains("has-image")) return
+
+      e.preventDefault()
+      const petKey = photo.dataset.petKey!
+      const crop = getCrop(petKey)
+      // Scroll pra baixo (deltaY > 0) = zoom out. Pra cima = zoom in.
+      const step = e.deltaY > 0 ? -10 : 10
+      const newZoom = clamp(crop.zoom + step, 100, 300)
+      const next = { ...crop, zoom: newZoom }
+      // Quando zoom volta pra 100%, força centro
+      if (newZoom === 100) { next.x = 50; next.y = 50 }
+      setCrop(petKey, next)
+      applyCropToElement(photo, next)
+    },
+    { passive: false },
+  )
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v))
+}
+
+function applyCropToElement(el: HTMLElement, crop: CropState): void {
+  el.style.backgroundPosition = `${crop.x}% ${crop.y}%`
+  el.style.backgroundSize = `${crop.zoom}% auto`
+}
+
+// Aplica crops salvos após cada render do preview (re-render destrói o DOM).
+// Listener pra mutações no preview-root garante reaplicação.
+let observerSetup = false
+function setupCropReapplication(): void {
+  if (observerSetup) return
+  observerSetup = true
+
+  const reapply = () => {
+    document.querySelectorAll<HTMLElement>(".pap-photo[data-pet-key]").forEach(el => {
+      const petKey = el.dataset.petKey!
+      const crop = getCrop(petKey)
+      if (crop.zoom > 100 || crop.x !== 50 || crop.y !== 50) {
+        applyCropToElement(el, crop)
+      }
+    })
+  }
+
+  // Observer no body — re-aplica sempre que o DOM mudar
+  const obs = new MutationObserver(reapply)
+  obs.observe(document.body, { childList: true, subtree: true })
+  reapply()
+}
+
+// Inicia setup quando o módulo for importado (no boot do app)
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      setupInteractions()
+      setupCropReapplication()
+    })
+  } else {
+    setupInteractions()
+    setupCropReapplication()
+  }
+}
+
 // ─── helper: monta um slide de pet ─────────────────────────────────────────
 function buildPetSlide(index: number) {
+  const petKey = `pet-${index}`
   return {
-    id: `pet-${index}`,
+    id: petKey,
     label: `pet ${index}`,
     fields: [
       {
@@ -29,6 +207,7 @@ function buildPetSlide(index: number) {
         shape: "rect" as const,
         optional: true,
         default: "",
+        hint: "após carregar, arraste a foto pra reposicionar e use scroll pra zoom",
       },
       {
         id: "name",
@@ -75,19 +254,16 @@ function buildPetSlide(index: number) {
     render: (s: SlideState, ctx: RenderContext): string => {
       const hasContent = (s.name ?? "").trim().length > 0
 
-      // monta as tags de info como string (já escapadas)
       const tagParts: string[] = []
       if (s.age) tagParts.push(`<span class="pap-tag">${esc(s.age)}</span>`)
       if (s.size) tagParts.push(`<span class="pap-tag">${esc(s.size)}</span>`)
       if (s.temperament) tagParts.push(`<span class="pap-tag pap-tag--accent">${esc(s.temperament)}</span>`)
       const tagsHtml = tagParts.length ? `<div class="pap-tags">${tagParts.join("")}</div>` : ""
 
-      // monta o bloco de contato
       const orgHtml = s.org
         ? `<div class="pap-org"><span class="pap-org-label">contato</span><span class="pap-org-value">${esc(s.org)}</span></div>`
         : ""
 
-      // monta o conteúdo do card (preenchido ou estado vazio)
       const contentHtml = hasContent
         ? `<h2 class="pap-name">${esc(s.name)}</h2>${tagsHtml}${orgHtml}`
         : `<p class="pap-empty">preencha as infos do pet ${index} ao lado →</p>`
@@ -96,13 +272,24 @@ function buildPetSlide(index: number) {
         ? ""
         : `<span class="pap-photo-placeholder">📷<br><small>foto do pet</small></span>`
 
+      // Aplica crop inicial inline (também é re-aplicado pelo observer)
+      const crop = s.photo ? getCrop(petKey) : DEFAULT_CROP
+      const cropStyle = s.photo
+        ? `background-position:${crop.x}% ${crop.y}%;background-size:${crop.zoom}% auto;`
+        : ""
+
       return html`
         ${html.raw(frameLabel(ctx, `pet ${index}`))}
         <div class="frame frame-pap">
           ${html.raw(topBar(ctx))}
 
-          <div class="pap-photo ${s.photo ? "has-image" : ""}" style="${html.raw(bgImage(s.photo))}">
+          <div
+            class="pap-photo ${s.photo ? "has-image" : ""}"
+            data-pet-key="${petKey}"
+            style="${html.raw(bgImage(s.photo))}${html.raw(cropStyle)}"
+          >
             ${html.raw(placeholderHtml)}
+            ${s.photo ? html.raw('<div class="pap-photo-hint" data-no-export>arraste pra mover · scroll pra zoom</div>') : ""}
           </div>
 
           <div class="pap-content">
@@ -121,7 +308,7 @@ function buildPetSlide(index: number) {
 export const petAdocaoPost: Layout = {
   id: "pet-adocao-post",
   name: "Pets pra adoção (post)",
-  description: "Carrossel pra divulgar até 5 pets pra adoção. Capa + pets + CTA.",
+  description: "Carrossel pra divulgar até 5 pets pra adoção. Capa + pets + CTA. Arraste a foto pra ajustar o enquadramento.",
   format: "carousel",
   category: "adoção",
   defaultTypography: {
@@ -300,11 +487,17 @@ export const petAdocaoPost: Layout = {
       background-color: var(--olive);
       background-size: cover;
       background-position: center;
+      background-repeat: no-repeat;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+      position: relative;
     }
+    /* Cursor de grab só quando tem imagem (indica que dá pra arrastar) */
+    .pap-photo.has-image { cursor: grab; }
+    .pap-photo.has-image:active { cursor: grabbing; }
+
     .pap-photo-placeholder {
       font-size: 120px;
       color: var(--bg);
@@ -319,6 +512,23 @@ export const petAdocaoPost: Layout = {
       font-family: var(--font-body);
       opacity: 0.85;
     }
+    /* Hint visual que aparece no preview mas é excluído do export */
+    .pap-photo-hint {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      font-family: var(--font-body);
+      font-size: 24px;
+      padding: 9px 21px;
+      border-radius: 60px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .pap-photo.has-image:hover .pap-photo-hint { opacity: 1; }
 
     .pap-content {
       flex: 1;
