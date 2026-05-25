@@ -4,25 +4,35 @@
 // Foto domina ~60% do slide (810px de 1350), texto embaixo.
 //
 // ENQUADRAMENTO DA FOTO (drag + zoom):
-//   Cada slot de pet tem um crop ajustável via <img> com transform.
-//   • drag = translate(x, y)
-//   • scroll = scale()
+//   A <img> é exibida no tamanho NATURAL com transform: translate() scale().
+//   No load, calculamos a "scale base" (equivalente ao object-fit: cover):
+//   o quanto a imagem precisa ser escalada pra cobrir o container 1080×810.
+//   • scale = baseScale → equivalente a cover (ponto de partida)
+//   • drag = translate(x, y) em px no espaço real
+//   • scroll = aumenta scale a partir do baseScale
 //   Estado persistido em localStorage paralelo ao LayoutStore.
 //
-// IMPORTANTE: nunca aninhe html`...` dentro de outro html`...` — a interna
-// vira string e a externa escapa. Use html.raw() ou strings + esc().
+// IMPORTANTE: nunca aninhe html`...` dentro de outro html`...`. Use html.raw().
 
 import type { Layout, SlideState, RenderContext } from "../core/types"
 import { html, richText, esc } from "../core/template"
 import { topBar, handlePill, frameLabel } from "./_shared"
 
-// ─── crop state lateral (paralelo ao LayoutStore) ──────────────────────────
-// tx, ty em px (no espaço da imagem em 1080×810 — escala real)
-// scale = multiplicador (1.0 = "cover", 1.5 = 50% maior, etc)
+// ─── constantes do container da foto ────────────────────────────────────
+const PHOTO_W = 1080
+const PHOTO_H = 810
 
-type CropState = { tx: number; ty: number; scale: number }
+// ─── crop state lateral ─────────────────────────────────────────────────
+// tx, ty em px (espaço real da imagem natural — antes do scale)
+// scale = multiplicador aplicado ao tamanho natural da imagem.
+//   Pra "cover" (estado inicial), calculamos baseScale baseado nas dimensões
+//   naturais da imagem e do container. A scale armazenada NUNCA é menor que
+//   o baseScale (senão aparece borda preta).
+// userZoom = quanto o usuário aumentou ALÉM do cover (1.0 a 3.0)
+
+type CropState = { tx: number; ty: number; userZoom: number }
 const CROP_STORAGE_KEY = "mybuddy-editor:pet-adocao-post:crops"
-const DEFAULT_CROP: CropState = { tx: 0, ty: 0, scale: 1 }
+const DEFAULT_CROP: CropState = { tx: 0, ty: 0, userZoom: 1 }
 
 function loadCrops(): Record<string, CropState> {
   try {
@@ -48,14 +58,54 @@ function setCrop(petKey: string, crop: CropState): void {
   saveCrops(all)
 }
 
-function applyCropToImg(img: HTMLImageElement, crop: CropState): void {
-  img.style.transform = `translate(${crop.tx}px, ${crop.ty}px) scale(${crop.scale})`
+// ─── matemática do crop ─────────────────────────────────────────────────
+// Calcula a escala mínima pra imagem cobrir o container (equivalente CSS object-fit:cover)
+function coverScale(naturalW: number, naturalH: number): number {
+  return Math.max(PHOTO_W / naturalW, PHOTO_H / naturalH)
 }
 
-// ─── interação: drag + zoom ────────────────────────────────────────────────
-// Listeners delegados no document. Setup uma vez (idempotente).
-// O re-render do Preview destrói os elementos mas listeners ficam.
+// Limita tx/ty pra imagem nunca sair do container (deixar borda visível).
+// Imagem renderizada = natural * scale. Container = 1080×810. Centro da imagem
+// começa em (PHOTO_W/2, PHOTO_H/2) com tx=ty=0. Os limites são metade da
+// diferença entre tamanho renderizado e container.
+function clampTranslate(
+  tx: number, ty: number,
+  naturalW: number, naturalH: number,
+  scale: number,
+): { tx: number; ty: number } {
+  const renderedW = naturalW * scale
+  const renderedH = naturalH * scale
+  const maxOffsetX = Math.max(0, (renderedW - PHOTO_W) / 2)
+  const maxOffsetY = Math.max(0, (renderedH - PHOTO_H) / 2)
+  return {
+    tx: clamp(tx, -maxOffsetX, maxOffsetX),
+    ty: clamp(ty, -maxOffsetY, maxOffsetY),
+  }
+}
 
+function applyCropToImg(img: HTMLImageElement, crop: CropState): void {
+  const naturalW = img.naturalWidth
+  const naturalH = img.naturalHeight
+  if (!naturalW || !naturalH) return // ainda não carregou
+
+  const base = coverScale(naturalW, naturalH)
+  const scale = base * crop.userZoom
+  const clamped = clampTranslate(crop.tx, crop.ty, naturalW, naturalH, scale)
+
+  // posiciona a imagem com o canto superior esquerdo em (PHOTO_W/2 - renderedW/2, ...)
+  // pra ficar centralizada com tx=ty=0
+  const renderedW = naturalW * scale
+  const renderedH = naturalH * scale
+  const left = (PHOTO_W - renderedW) / 2 + clamped.tx
+  const top = (PHOTO_H - renderedH) / 2 + clamped.ty
+
+  img.style.width = `${naturalW}px`
+  img.style.height = `${naturalH}px`
+  img.style.transform = `translate(${left}px, ${top}px) scale(${scale})`
+  img.style.transformOrigin = "0 0"
+}
+
+// ─── interação ──────────────────────────────────────────────────────────
 let interactionSetup = false
 
 function setupInteractions(): void {
@@ -70,7 +120,6 @@ function setupInteractions(): void {
     startClientY: number
     startTx: number
     startTy: number
-    /** Fator de escala visual: 1 px no preview = N px no espaço real da imagem */
     scaleVisualToReal: number
   } | null = null
 
@@ -79,19 +128,15 @@ function setupInteractions(): void {
     const container = target.closest<HTMLElement>(".pap-photo[data-pet-key]")
     if (!container) return
     const img = container.querySelector<HTMLImageElement>(".pap-photo-img")
-    if (!img) return
+    if (!img || !img.naturalWidth) return
 
     const petKey = container.dataset.petKey!
     const crop = getCrop(petKey)
 
-    // Preview é escalado via CSS transform na frame-scaler. Pra converter
-    // delta de mouse (em px na tela) → delta no espaço da imagem real,
-    // precisamos do fator de escala. Pega largura "real" (1080) vs largura
-    // renderizada na tela.
+    // fator de escala visual: o container tem offsetWidth=1080 (real), mas
+    // na tela aparece menor por causa do transform: scale() no frame-scaler.
     const rect = container.getBoundingClientRect()
-    const realWidth = container.offsetWidth // 1080 (sem transform aplicado)
-    const visualWidth = rect.width          // o que aparece na tela
-    const scaleVisualToReal = realWidth / visualWidth
+    const scaleVisualToReal = container.offsetWidth / rect.width
 
     dragging = {
       container,
@@ -111,7 +156,6 @@ function setupInteractions(): void {
     if (!dragging) return
     const dxVisual = e.clientX - dragging.startClientX
     const dyVisual = e.clientY - dragging.startClientY
-    // converte pro espaço real da imagem
     const dxReal = dxVisual * dragging.scaleVisualToReal
     const dyReal = dyVisual * dragging.scaleVisualToReal
 
@@ -119,7 +163,7 @@ function setupInteractions(): void {
     const next: CropState = {
       tx: dragging.startTx + dxReal,
       ty: dragging.startTy + dyReal,
-      scale: crop.scale,
+      userZoom: crop.userZoom,
     }
     setCrop(dragging.petKey, next)
     applyCropToImg(dragging.img, next)
@@ -138,16 +182,15 @@ function setupInteractions(): void {
       const container = target.closest<HTMLElement>(".pap-photo[data-pet-key]")
       if (!container) return
       const img = container.querySelector<HTMLImageElement>(".pap-photo-img")
-      if (!img) return
+      if (!img || !img.naturalWidth) return
 
       e.preventDefault()
       const petKey = container.dataset.petKey!
       const crop = getCrop(petKey)
       const step = e.deltaY > 0 ? -0.05 : 0.05
-      const newScale = clamp(crop.scale + step, 1, 3)
-      const next: CropState = { tx: crop.tx, ty: crop.ty, scale: newScale }
-      // se voltou pra 1, centraliza
-      if (newScale === 1) { next.tx = 0; next.ty = 0 }
+      const newZoom = clamp(crop.userZoom + step, 1, 3)
+      const next: CropState = { tx: crop.tx, ty: crop.ty, userZoom: newZoom }
+      if (newZoom === 1) { next.tx = 0; next.ty = 0 }
       setCrop(petKey, next)
       applyCropToImg(img, next)
     },
@@ -159,18 +202,28 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v))
 }
 
-// Re-aplica crops após cada render do preview.
+// Re-aplica crops após render. Também precisa lidar com imagens que ainda não
+// carregaram (naturalWidth=0 no momento do render).
 let observerSetup = false
 function setupCropReapplication(): void {
   if (observerSetup) return
   observerSetup = true
 
+  const applyToImg = (img: HTMLImageElement) => {
+    const container = img.closest<HTMLElement>(".pap-photo[data-pet-key]")
+    if (!container) return
+    const petKey = container.dataset.petKey!
+    applyCropToImg(img, getCrop(petKey))
+  }
+
   const reapply = () => {
     document.querySelectorAll<HTMLImageElement>(".pap-photo-img").forEach(img => {
-      const container = img.closest<HTMLElement>(".pap-photo[data-pet-key]")
-      if (!container) return
-      const petKey = container.dataset.petKey!
-      applyCropToImg(img, getCrop(petKey))
+      if (img.naturalWidth) {
+        applyToImg(img)
+      } else {
+        // imagem ainda carregando — escuta o load
+        img.addEventListener("load", () => applyToImg(img), { once: true })
+      }
     })
   }
 
@@ -248,11 +301,8 @@ function buildPetSlide(index: number) {
         ? `<h2 class="pap-name">${esc(s.name)}</h2>${tagsHtml}${orgHtml}`
         : `<p class="pap-empty">preencha as infos do pet ${index} ao lado →</p>`
 
-      // monta o conteúdo da área de foto: <img> escalável OU placeholder
       let photoInner: string
       if (s.photo) {
-        // Atributo src com data URL — esc() escaparia o ":" da URL, então uso atributo simples.
-        // Como data URL não contém aspas, é seguro inserir direto.
         photoInner = `<img class="pap-photo-img" src="${s.photo}" alt="" draggable="false"/><div class="pap-photo-hint" data-no-export>arraste pra mover · scroll pra zoom</div>`
       } else {
         photoInner = `<span class="pap-photo-placeholder">📷<br><small>foto do pet</small></span>`
@@ -414,7 +464,7 @@ export const petAdocaoPost: Layout = {
       z-index: 10;
     }
 
-    /* container da foto: 1080×810 (60% da altura do slide) */
+    /* container da foto: 1080×810. overflow:hidden faz o crop. */
     .pap-photo {
       width: 100%;
       height: 810px;
@@ -429,17 +479,14 @@ export const petAdocaoPost: Layout = {
     .pap-photo.has-image { cursor: grab; }
     .pap-photo.has-image:active { cursor: grabbing; }
 
-    /* a <img> real, escalável via transform */
+    /* a <img> real — tamanho natural, controlada por transform via JS */
     .pap-photo-img {
       position: absolute;
       top: 0; left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform-origin: center center;
       user-select: none;
-      pointer-events: none; /* eventos vão pro container */
+      pointer-events: none;
       will-change: transform;
+      /* sem object-fit aqui — width/height/transform vêm via JS */
     }
 
     .pap-photo-placeholder {
