@@ -4,32 +4,83 @@
 // Foto domina ~60% do slide (810px de 1350), texto embaixo.
 //
 // ENQUADRAMENTO DA FOTO (drag + zoom):
-//   A <img> é exibida no tamanho NATURAL com transform: translate() scale().
-//   No load, calculamos a "scale base" (equivalente ao object-fit: cover):
-//   o quanto a imagem precisa ser escalada pra cobrir o container 1080×810.
-//   • scale = baseScale → equivalente a cover (ponto de partida)
-//   • drag = translate(x, y) em px no espaço real
-//   • scroll = aumenta scale a partir do baseScale
-//   Estado persistido em localStorage paralelo ao LayoutStore.
+//   <img> escalável via transform: translate() + scale(). baseScale calculado
+//   no load (equivale a object-fit:cover). userZoom multiplica em cima disso.
+//   Estado persistido em localStorage paralelo.
+//
+// QUANTOS PETS:
+//   Field "count" no slide capa controla quantos pets aparecem (1-5).
+//   Slides de pet com índice > count retornam HTML vazio do render() —
+//   isso faz o Preview montar o container sem .frame dentro, e o exporter
+//   pula automaticamente (frameAt() retorna null).
 //
 // IMPORTANTE: nunca aninhe html`...` dentro de outro html`...`. Use html.raw().
 
 import type { Layout, SlideState, RenderContext } from "../core/types"
 import { html, richText, esc } from "../core/template"
-import { topBar, handlePill, frameLabel } from "./_shared"
+import { handlePill, frameLabel } from "./_shared"
+
+const LAYOUT_ID = "pet-adocao-post"
 
 // ─── constantes do container da foto ────────────────────────────────────
 const PHOTO_W = 1080
 const PHOTO_H = 810
 
-// ─── crop state lateral ─────────────────────────────────────────────────
-// tx, ty em px (espaço real da imagem natural — antes do scale)
-// scale = multiplicador aplicado ao tamanho natural da imagem.
-//   Pra "cover" (estado inicial), calculamos baseScale baseado nas dimensões
-//   naturais da imagem e do container. A scale armazenada NUNCA é menor que
-//   o baseScale (senão aparece borda preta).
-// userZoom = quanto o usuário aumentou ALÉM do cover (1.0 a 3.0)
+// ─── lê quantos pets estão ativos (do LayoutStore via localStorage) ─────
+// O LayoutStore salva tudo em `mybuddy-editor:${layoutId}`. A gente lê esse
+// JSON direto pra saber o `count` atual sem precisar passar pelo render context.
+function readActiveCount(): number {
+  try {
+    const raw = localStorage.getItem(`mybuddy-editor:${LAYOUT_ID}`)
+    if (!raw) return 5
+    const parsed = JSON.parse(raw)
+    const count = parsed?.cover?.count
+    const n = parseInt(count, 10)
+    return isFinite(n) && n >= 1 && n <= 5 ? n : 5
+  } catch {
+    return 5
+  }
+}
 
+// total de slides ativos = capa + N pets + CTA
+function activeTotal(): number {
+  return readActiveCount() + 2
+}
+
+// ─── topBar local (replica do _shared mas com count customizado) ────────
+function localTopBar(activeIndex: number, activeTotal: number, opts: { invertLogo?: boolean } = {}): string {
+  const logoClass = opts.invertLogo ? "mb-logo mb-logo--inverted" : "mb-logo"
+  const dots: string[] = []
+  for (let i = 0; i < activeTotal; i++) {
+    const cls = i === activeIndex ? "active" : ""
+    dots.push(`<span class="${cls}"></span>`)
+  }
+  return `
+    <div class="top">
+      <div class="${logoClass}">MyBuddy</div>
+      <div class="counter">${dots.join("")}</div>
+    </div>
+  `
+}
+
+// Posição "ativa" de cada slide no carrossel real:
+//   0 = capa
+//   1..N = pets (até o count)
+//   N+1 = CTA
+// Slides desativados retornam -1 (não aparecem)
+function activeIndexFor(slideId: string): number {
+  const count = readActiveCount()
+  if (slideId === "cover") return 0
+  if (slideId === "cta") return count + 1
+  const m = slideId.match(/^pet-(\d+)$/)
+  if (m) {
+    const petIdx = parseInt(m[1], 10)
+    if (petIdx <= count) return petIdx
+  }
+  return -1 // desativado
+}
+
+// ─── crop state lateral ─────────────────────────────────────────────────
 type CropState = { tx: number; ty: number; userZoom: number }
 const CROP_STORAGE_KEY = "mybuddy-editor:pet-adocao-post:crops"
 const DEFAULT_CROP: CropState = { tx: 0, ty: 0, userZoom: 1 }
@@ -42,32 +93,22 @@ function loadCrops(): Record<string, CropState> {
     return {}
   }
 }
-
 function saveCrops(crops: Record<string, CropState>): void {
   localStorage.setItem(CROP_STORAGE_KEY, JSON.stringify(crops))
 }
-
 function getCrop(petKey: string): CropState {
-  const all = loadCrops()
-  return all[petKey] ?? { ...DEFAULT_CROP }
+  return loadCrops()[petKey] ?? { ...DEFAULT_CROP }
 }
-
-function setCrop(petKey: string, crop: CropState): void {
+function setCropState(petKey: string, crop: CropState): void {
   const all = loadCrops()
   all[petKey] = crop
   saveCrops(all)
 }
 
-// ─── matemática do crop ─────────────────────────────────────────────────
-// Calcula a escala mínima pra imagem cobrir o container (equivalente CSS object-fit:cover)
 function coverScale(naturalW: number, naturalH: number): number {
   return Math.max(PHOTO_W / naturalW, PHOTO_H / naturalH)
 }
 
-// Limita tx/ty pra imagem nunca sair do container (deixar borda visível).
-// Imagem renderizada = natural * scale. Container = 1080×810. Centro da imagem
-// começa em (PHOTO_W/2, PHOTO_H/2) com tx=ty=0. Os limites são metade da
-// diferença entre tamanho renderizado e container.
 function clampTranslate(
   tx: number, ty: number,
   naturalW: number, naturalH: number,
@@ -86,14 +127,12 @@ function clampTranslate(
 function applyCropToImg(img: HTMLImageElement, crop: CropState): void {
   const naturalW = img.naturalWidth
   const naturalH = img.naturalHeight
-  if (!naturalW || !naturalH) return // ainda não carregou
+  if (!naturalW || !naturalH) return
 
   const base = coverScale(naturalW, naturalH)
   const scale = base * crop.userZoom
   const clamped = clampTranslate(crop.tx, crop.ty, naturalW, naturalH, scale)
 
-  // posiciona a imagem com o canto superior esquerdo em (PHOTO_W/2 - renderedW/2, ...)
-  // pra ficar centralizada com tx=ty=0
   const renderedW = naturalW * scale
   const renderedH = naturalH * scale
   const left = (PHOTO_W - renderedW) / 2 + clamped.tx
@@ -132,9 +171,6 @@ function setupInteractions(): void {
 
     const petKey = container.dataset.petKey!
     const crop = getCrop(petKey)
-
-    // fator de escala visual: o container tem offsetWidth=1080 (real), mas
-    // na tela aparece menor por causa do transform: scale() no frame-scaler.
     const rect = container.getBoundingClientRect()
     const scaleVisualToReal = container.offsetWidth / rect.width
 
@@ -165,7 +201,7 @@ function setupInteractions(): void {
       ty: dragging.startTy + dyReal,
       userZoom: crop.userZoom,
     }
-    setCrop(dragging.petKey, next)
+    setCropState(dragging.petKey, next)
     applyCropToImg(dragging.img, next)
   })
 
@@ -191,7 +227,7 @@ function setupInteractions(): void {
       const newZoom = clamp(crop.userZoom + step, 1, 3)
       const next: CropState = { tx: crop.tx, ty: crop.ty, userZoom: newZoom }
       if (newZoom === 1) { next.tx = 0; next.ty = 0 }
-      setCrop(petKey, next)
+      setCropState(petKey, next)
       applyCropToImg(img, next)
     },
     { passive: false },
@@ -202,8 +238,6 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v))
 }
 
-// Re-aplica crops após render. Também precisa lidar com imagens que ainda não
-// carregaram (naturalWidth=0 no momento do render).
 let observerSetup = false
 function setupCropReapplication(): void {
   if (observerSetup) return
@@ -221,7 +255,6 @@ function setupCropReapplication(): void {
       if (img.naturalWidth) {
         applyToImg(img)
       } else {
-        // imagem ainda carregando — escuta o load
         img.addEventListener("load", () => applyToImg(img), { once: true })
       }
     })
@@ -284,7 +317,12 @@ function buildPetSlide(index: number) {
       },
       { id: "org", type: "text" as const, label: `pet ${index} — ONG / contato`, default: "", optional: true },
     ],
-    render: (s: SlideState, ctx: RenderContext): string => {
+    render: (s: SlideState, _ctx: RenderContext): string => {
+      // Se esse pet está acima do count, não renderiza nada.
+      const myActiveIdx = activeIndexFor(petKey)
+      if (myActiveIdx === -1) return ""
+
+      const total = activeTotal()
       const hasContent = (s.name ?? "").trim().length > 0
 
       const tagParts: string[] = []
@@ -308,21 +346,21 @@ function buildPetSlide(index: number) {
         photoInner = `<span class="pap-photo-placeholder">📷<br><small>foto do pet</small></span>`
       }
 
-      return html`
-        ${html.raw(frameLabel(ctx, `pet ${index}`))}
+      return `
+        ${frameLabel({ slideIndex: myActiveIdx, totalSlides: total } as RenderContext, `pet ${index}`)}
         <div class="frame frame-pap">
-          ${html.raw(topBar(ctx))}
+          ${localTopBar(myActiveIdx, total)}
 
           <div class="pap-photo ${s.photo ? "has-image" : ""}" data-pet-key="${petKey}">
-            ${html.raw(photoInner)}
+            ${photoInner}
           </div>
 
           <div class="pap-content">
-            ${html.raw(contentHtml)}
+            ${contentHtml}
           </div>
 
           <div class="pap-bottom">
-            ${html.raw(handlePill(ctx))}
+            ${handlePill({ handle: getHandle() } as RenderContext)}
           </div>
         </div>
       `
@@ -330,10 +368,20 @@ function buildPetSlide(index: number) {
   }
 }
 
+// Helper pra ler o handle (precisa pra usar handlePill fora do `html` template)
+function getHandle(): string {
+  try {
+    const raw = localStorage.getItem("mybuddy-editor:handle")
+    return raw ? JSON.parse(raw) : "@mybuddy.pet"
+  } catch {
+    return "@mybuddy.pet"
+  }
+}
+
 export const petAdocaoPost: Layout = {
-  id: "pet-adocao-post",
+  id: LAYOUT_ID,
   name: "Pets pra adoção (post)",
-  description: "Carrossel pra divulgar até 5 pets pra adoção. Capa + pets + CTA. Arraste a foto pra ajustar o enquadramento.",
+  description: "Carrossel pra divulgar até 5 pets pra adoção. Escolha quantos pets na capa.",
   format: "carousel",
   category: "adoção",
   defaultTypography: {
@@ -342,10 +390,25 @@ export const petAdocaoPost: Layout = {
   },
 
   slides: [
+    // ─── CAPA ──────────────────────────────────────────────────────────
     {
       id: "cover",
       label: "capa",
       fields: [
+        {
+          id: "count",
+          type: "select",
+          label: "quantos pets vai divulgar?",
+          default: "3",
+          hint: "controla quantos slides aparecem no carrossel final",
+          options: [
+            { label: "1 pet", value: "1" },
+            { label: "2 pets", value: "2" },
+            { label: "3 pets", value: "3" },
+            { label: "4 pets", value: "4" },
+            { label: "5 pets", value: "5" },
+          ],
+        },
         { id: "eyebrow", type: "text", label: "olho (em cima do título)", default: "pets esperando um lar" },
         {
           id: "headline",
@@ -361,19 +424,22 @@ export const petAdocaoPost: Layout = {
           optional: true,
         },
       ],
-      render: (s, ctx) => {
+      render: (s, _ctx) => {
+        const total = activeTotal()
+        const myIdx = activeIndexFor("cover")
         const sublineHtml = s.subline ? `<p class="pap-subline">${esc(s.subline)}</p>` : ""
-        return html`
-          ${html.raw(frameLabel(ctx, "capa"))}
+
+        return `
+          ${frameLabel({ slideIndex: myIdx, totalSlides: total } as RenderContext, "capa")}
           <div class="frame frame-pap-cover">
-            ${html.raw(topBar(ctx))}
+            ${localTopBar(myIdx, total)}
             <div class="pap-cover-content">
-              <p class="pap-eyebrow">${s.eyebrow}</p>
-              <h1 class="pap-headline">${html.raw(richText(s.headline))}</h1>
-              ${html.raw(sublineHtml)}
+              <p class="pap-eyebrow">${esc(s.eyebrow)}</p>
+              <h1 class="pap-headline">${richText(s.headline)}</h1>
+              ${sublineHtml}
             </div>
             <div class="pap-bottom">
-              ${html.raw(handlePill(ctx))}
+              ${handlePill({ handle: getHandle() } as RenderContext)}
               <span class="pap-swipe">arraste →</span>
             </div>
           </div>
@@ -387,6 +453,7 @@ export const petAdocaoPost: Layout = {
     buildPetSlide(4),
     buildPetSlide(5),
 
+    // ─── CTA FINAL ─────────────────────────────────────────────────────
     {
       id: "cta",
       label: "CTA final",
@@ -405,20 +472,25 @@ export const petAdocaoPost: Layout = {
         },
         { id: "cta", type: "text", label: "CTA", default: "fale com a gente no direct" },
       ],
-      render: (s, ctx) => html`
-        ${html.raw(frameLabel(ctx, "CTA"))}
-        <div class="frame frame-pap-cta">
-          ${html.raw(topBar(ctx, { invertLogo: true }))}
-          <div class="pap-cta-content">
-            <h2 class="pap-cta-headline">${html.raw(richText(s.headline))}</h2>
-            <p class="pap-cta-body">${s.body}</p>
+      render: (s, _ctx) => {
+        const total = activeTotal()
+        const myIdx = activeIndexFor("cta")
+
+        return `
+          ${frameLabel({ slideIndex: myIdx, totalSlides: total } as RenderContext, "CTA")}
+          <div class="frame frame-pap-cta">
+            ${localTopBar(myIdx, total, { invertLogo: true })}
+            <div class="pap-cta-content">
+              <h2 class="pap-cta-headline">${richText(s.headline)}</h2>
+              <p class="pap-cta-body">${esc(s.body)}</p>
+            </div>
+            <div class="pap-cta-bottom">
+              <span class="pap-cta-text">${esc(s.cta)}</span>
+              ${handlePill({ handle: getHandle() } as RenderContext, { variant: "light" })}
+            </div>
           </div>
-          <div class="pap-cta-bottom">
-            <span class="pap-cta-text">${s.cta}</span>
-            ${html.raw(handlePill(ctx, { variant: "light" }))}
-          </div>
-        </div>
-      `,
+        `
+      },
     },
   ],
 
@@ -464,7 +536,6 @@ export const petAdocaoPost: Layout = {
       z-index: 10;
     }
 
-    /* container da foto: 1080×810. overflow:hidden faz o crop. */
     .pap-photo {
       width: 100%;
       height: 810px;
@@ -479,14 +550,12 @@ export const petAdocaoPost: Layout = {
     .pap-photo.has-image { cursor: grab; }
     .pap-photo.has-image:active { cursor: grabbing; }
 
-    /* a <img> real — tamanho natural, controlada por transform via JS */
     .pap-photo-img {
       position: absolute;
       top: 0; left: 0;
       user-select: none;
       pointer-events: none;
       will-change: transform;
-      /* sem object-fit aqui — width/height/transform vêm via JS */
     }
 
     .pap-photo-placeholder {

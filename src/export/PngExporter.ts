@@ -3,6 +3,9 @@
 //
 // Estratégia: o .frame já é intrinsecamente no tamanho final. O preview aplica
 // transform: scale() externo. Pra exportar, desligamos o transform e capturamos.
+//
+// Slides que retornam HTML vazio do render() não têm .frame no DOM. O exporter
+// pula esses automaticamente (frameAt() retorna null).
 
 import html2canvas from "html2canvas"
 import JSZip from "jszip"
@@ -15,9 +18,13 @@ function frameDims(layout: Layout): { w: number; h: number } {
     : { w: 1080, h: 1350 }
 }
 
-async function renderFrame(preview: Preview, layout: Layout, index: number): Promise<HTMLCanvasElement> {
+/**
+ * Renderiza um slide pra canvas. Retorna null se o slide está desativado
+ * (frame não existe no DOM porque o render() retornou string vazia).
+ */
+async function renderFrame(preview: Preview, layout: Layout, index: number): Promise<HTMLCanvasElement | null> {
   const frame = preview.frameAt(index)
-  if (!frame) throw new Error(`frame ${index} não encontrado no DOM`)
+  if (!frame) return null // slide desativado — pula silenciosamente
 
   const { w, h } = frameDims(layout)
 
@@ -75,12 +82,17 @@ function filename(layout: Layout, index: number): string {
 
 export async function exportFrame(preview: Preview, layout: Layout, index: number): Promise<void> {
   const canvas = await renderFrame(preview, layout, index)
+  if (!canvas) {
+    console.warn(`Slide ${index} (${layout.slides[index].id}) está desativado — nada pra exportar.`)
+    return
+  }
   download(canvas.toDataURL("image/png"), filename(layout, index))
 }
 
 export async function exportAll(preview: Preview, layout: Layout): Promise<void> {
   for (let i = 0; i < layout.slides.length; i++) {
     const canvas = await renderFrame(preview, layout, i)
+    if (!canvas) continue // pula slides desativados
     download(canvas.toDataURL("image/png"), filename(layout, i))
     await new Promise(r => setTimeout(r, 400))
   }
@@ -90,6 +102,7 @@ export async function exportZip(preview: Preview, layout: Layout): Promise<void>
   const zip = new JSZip()
   for (let i = 0; i < layout.slides.length; i++) {
     const canvas = await renderFrame(preview, layout, i)
+    if (!canvas) continue // pula slides desativados
     const base64 = canvas.toDataURL("image/png").split(",")[1]
     zip.file(filename(layout, i), base64, { base64: true })
     await new Promise(r => setTimeout(r, 200))
